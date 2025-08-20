@@ -53,11 +53,14 @@ impl From<libva::VaError> for StatelessBackendError {
 pub(crate) fn tunings_to_libva_rc<const CLAMP_MIN_QP: u32, const CLAMP_MAX_QP: u32>(
     tunings: &Tunings,
 ) -> StatelessBackendResult<libva::EncMiscParameterRateControl> {
-    let bits_per_second = tunings.rate_control.bitrate_target().unwrap_or(0);
-    let bits_per_second = u32::try_from(bits_per_second).map_err(|e| anyhow::anyhow!(e))?;
+    let bits_per_second = tunings.rate_control.bitrate_maximum().unwrap_or(0);
+    let target_bits_per_second = tunings.rate_control.bitrate_target().unwrap_or(bits_per_second);
 
-    // At the moment we don't support variable bitrate therefore target 100%
-    const TARGET_PERCENTAGE: u32 = 100;
+    let bits_per_second = u32::try_from(bits_per_second).map_err(|e| anyhow::anyhow!(e))?;
+    let target_bits_per_second =
+        u32::try_from(target_bits_per_second).map_err(|e| anyhow::anyhow!(e))?;
+
+    let target_percentage: u32 = 100 * target_bits_per_second / bits_per_second;
 
     // Window size in ms that the RC should apply to
     const WINDOW_SIZE: u32 = 1_500;
@@ -114,7 +117,7 @@ pub(crate) fn tunings_to_libva_rc<const CLAMP_MIN_QP: u32, const CLAMP_MAX_QP: u
 
     Ok(libva::EncMiscParameterRateControl::new(
         bits_per_second,
-        TARGET_PERCENTAGE,
+        target_percentage,
         WINDOW_SIZE,
         initial_qp,
         min_qp,

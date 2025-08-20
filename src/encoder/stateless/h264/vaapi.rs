@@ -450,6 +450,7 @@ impl<V: VideoFrame> StatelessEncoder<V, VaapiBackend<V::MemDescriptor, Surface<V
 
         let bitrate_control = match config.initial_tunings.rate_control {
             RateControl::ConstantBitrate(_) => libva::VA_RC_CBR,
+            RateControl::VariableBitrate { .. } => libva::VA_RC_VBR,
             RateControl::ConstantQuality(_) => libva::VA_RC_CQP,
         };
 

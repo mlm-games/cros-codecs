@@ -523,6 +523,7 @@ where
             "bitrate mode",
             match rate_control {
                 RateControl::ConstantBitrate(_) => VideoBitrateMode::ConstantBitrate,
+                RateControl::VariableBitrate { .. } => todo!(),
                 RateControl::ConstantQuality(_) => VideoBitrateMode::ConstantQuality,
             },
         )?;
