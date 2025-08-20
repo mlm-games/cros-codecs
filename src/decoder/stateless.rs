@@ -11,8 +11,10 @@
 //! combining a codec codec to a [backend](crate::backend), after which bitstream units can be
 //! submitted through the [`StatelessDecoder::decode`] method.
 
+#[cfg(feature = "av1")]
 pub mod av1;
 pub mod h264;
+#[cfg(feature = "h265")]
 pub mod h265;
 pub mod vp8;
 pub mod vp9;

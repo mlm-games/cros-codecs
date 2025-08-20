@@ -16,7 +16,7 @@ use crate::Fourcc;
 use crate::Resolution;
 
 pub mod frame_pool;
-#[cfg(feature = "backend")]
+#[cfg(feature = "gbm")]
 pub mod gbm_video_frame;
 #[cfg(feature = "backend")]
 pub mod generic_dma_video_frame;

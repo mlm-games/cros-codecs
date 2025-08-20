@@ -4,8 +4,10 @@
 
 use std::fmt;
 
+#[cfg(feature = "av1")]
 pub mod av1;
 pub mod h264;
+#[cfg(feature = "h265")]
 pub mod h265;
 pub mod vp8;
 pub mod vp9;
@@ -13,6 +15,7 @@ pub mod vp9;
 pub mod stateful;
 pub mod stateless;
 
+#[cfg(feature = "av1")]
 use crate::codec::av1::synthesizer::SynthesizerError as AV1SynthesizerError;
 use crate::codec::h264::synthesizer::SynthesizerError as H264SynthesizerError;
 use crate::encoder::stateful::StatefulBackendError;
@@ -113,6 +116,7 @@ pub enum EncodeError {
     StatelessBackendError(StatelessBackendError),
     StatefulBackendError(StatefulBackendError),
     H264SynthesizerError(H264SynthesizerError),
+    #[cfg(feature = "av1")]
     AV1SynthesizerError(AV1SynthesizerError),
 }
 
@@ -126,6 +130,7 @@ impl fmt::Display for EncodeError {
             EncodeError::StatelessBackendError(x) => write!(f, "{}", x.to_string()),
             EncodeError::StatefulBackendError(x) => write!(f, "{}", x.to_string()),
             EncodeError::H264SynthesizerError(x) => write!(f, "{}", x.to_string()),
+            #[cfg(feature = "av1")]
             EncodeError::AV1SynthesizerError(x) => write!(f, "{}", x.to_string()),
         }
     }
@@ -149,6 +154,7 @@ impl From<H264SynthesizerError> for EncodeError {
     }
 }
 
+#[cfg(feature = "av1")]
 impl From<AV1SynthesizerError> for EncodeError {
     fn from(err: AV1SynthesizerError) -> Self {
         EncodeError::AV1SynthesizerError(err)

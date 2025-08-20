@@ -32,7 +32,7 @@ use crate::decoder::StreamInfo;
 use crate::image_processing::convert_video_frame;
 use crate::video_frame::frame_pool::FramePool;
 use crate::video_frame::frame_pool::PooledVideoFrame;
-#[cfg(feature = "vaapi")]
+#[cfg(feature = "gbm")]
 use crate::video_frame::gbm_video_frame::{GbmDevice, GbmUsage, GbmVideoFrame};
 #[cfg(feature = "v4l2")]
 use crate::video_frame::v4l2_mmap_video_frame::V4l2MmapVideoFrame;
@@ -62,7 +62,7 @@ pub trait C2DecoderBackend {
     ) -> Result<DynStatelessVideoDecoder<V>, String>;
 }
 
-#[cfg(feature = "vaapi")]
+#[cfg(feature = "gbm")]
 type AuxiliaryVideoFrame = GbmVideoFrame;
 #[cfg(feature = "v4l2")]
 type AuxiliaryVideoFrame = V4l2MmapVideoFrame;
@@ -189,7 +189,7 @@ where
                 ),
             )
         } else {
-            #[cfg(feature = "vaapi")]
+            #[cfg(feature = "gbm")]
             {
                 let gbm_device = Arc::new(
                     GbmDevice::open(PathBuf::from("/dev/dri/renderD128"))

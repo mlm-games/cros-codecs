@@ -25,7 +25,7 @@ pub mod codec;
 
 #[cfg(feature = "backend")]
 pub mod backend;
-#[cfg(feature = "backend")]
+#[cfg(feature = "c2-wrapper")]
 pub mod c2_wrapper;
 #[cfg(feature = "backend")]
 pub mod decoder;
@@ -270,9 +270,11 @@ impl From<DecodedFormat> for Fourcc {
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub enum EncodedFormat {
     H264,
+    #[cfg(feature = "h265")]
     H265,
     VP8,
     VP9,
+    #[cfg(feature = "av1")]
     AV1,
 }
 
@@ -282,9 +284,11 @@ impl FromStr for EncodedFormat {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "h264" | "H264" => Ok(EncodedFormat::H264),
+            #[cfg(feature = "h265")]
             "h265" | "H265" => Ok(EncodedFormat::H265),
             "vp8" | "VP8" => Ok(EncodedFormat::VP8),
             "vp9" | "VP9" => Ok(EncodedFormat::VP9),
+            #[cfg(feature = "av1")]
             "av1" | "AV1" => Ok(EncodedFormat::AV1),
             _ => Err("unrecognized input format. Valid values: h264, h265, vp8, vp9, av1"),
         }
@@ -295,9 +299,11 @@ impl From<Fourcc> for EncodedFormat {
     fn from(fourcc: Fourcc) -> EncodedFormat {
         match fourcc.to_string().as_str() {
             "H264" => EncodedFormat::H264,
+            #[cfg(feature = "h265")]
             "HEVC" => EncodedFormat::H265,
             "VP80" => EncodedFormat::VP8,
             "VP90" => EncodedFormat::VP9,
+            #[cfg(feature = "av1")]
             "AV1F" => EncodedFormat::AV1,
             _ => todo!("Fourcc {} not yet supported", fourcc),
         }
@@ -308,9 +314,11 @@ impl From<EncodedFormat> for Fourcc {
     fn from(format: EncodedFormat) -> Fourcc {
         match format {
             EncodedFormat::H264 => Fourcc::from(b"H264"),
+            #[cfg(feature = "h265")]
             EncodedFormat::H265 => Fourcc::from(b"HEVC"),
             EncodedFormat::VP8 => Fourcc::from(b"VP80"),
             EncodedFormat::VP9 => Fourcc::from(b"VP90"),
+            #[cfg(feature = "av1")]
             EncodedFormat::AV1 => Fourcc::from(b"AV1F"),
         }
     }
