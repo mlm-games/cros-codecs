@@ -79,6 +79,10 @@ pub struct Tunings {
     pub min_quality: u32,
     /// Maximum value of codec specific quality parameter constant (eg. QP for H.264)
     pub max_quality: u32,
+    /// Buffer size, in bits, used for rate control
+    pub rc_buffer_size: Option<u32>,
+    /// Maximum frame size, in bits
+    pub max_frame_size: Option<u32>,
 }
 
 impl Default for Tunings {
@@ -88,6 +92,8 @@ impl Default for Tunings {
             framerate: 30,
             min_quality: 0,
             max_quality: u32::MAX,
+            rc_buffer_size: None,
+            max_frame_size: None,
         }
     }
 }

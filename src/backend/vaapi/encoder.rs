@@ -18,6 +18,7 @@ use libva::PictureEnd;
 use libva::Surface;
 use libva::SurfaceMemoryDescriptor;
 use libva::UsageHint;
+use libva::VAEntrypoint;
 use libva::VAEntrypoint::VAEntrypointEncSlice;
 use libva::VAEntrypoint::VAEntrypointEncSliceLP;
 use libva::VAProfile;
@@ -165,7 +166,8 @@ where
     /// VA context used for encoding.
     context: Rc<Context>,
 
-    _va_profile: VAProfile::Type,
+    va_profile: VAProfile::Type,
+    entrypoint: VAEntrypoint::Type,
     scratch_pool: VaSurfacePool<()>,
     _phantom: PhantomData<(M, H)>,
 }
@@ -189,6 +191,7 @@ where
             .ok_or_else(|| StatelessBackendError::UnsupportedFormat)?;
 
         let rt_format = format_map.rt_format;
+        let entrypoint = if low_power { VAEntrypointEncSliceLP } else { VAEntrypointEncSlice };
 
         let va_config = display.create_config(
             vec![
@@ -202,7 +205,7 @@ where
                 },
             ],
             va_profile,
-            if low_power { VAEntrypointEncSliceLP } else { VAEntrypointEncSlice },
+            entrypoint,
         )?;
 
         let context = display.create_context::<M>(
@@ -227,7 +230,8 @@ where
             va_config,
             context,
             scratch_pool,
-            _va_profile: va_profile,
+            va_profile,
+            entrypoint,
             _phantom: Default::default(),
         })
     }
@@ -274,6 +278,21 @@ where
             self.scratch_pool.get_surface().ok_or(StatelessBackendError::OutOfResources)?;
 
         Ok(Reconstructed(surface))
+    }
+
+    pub(crate) fn supports_max_frame_size(&self) -> StatelessBackendResult<bool> {
+        let display = self.context().display();
+        let mut attrs = [libva::VAConfigAttrib {
+            type_: libva::VAConfigAttribType::VAConfigAttribMaxFrameSize,
+            value: 0,
+        }];
+
+        display.get_config_attributes(self.va_profile, self.entrypoint, &mut attrs)?;
+
+        if attrs[0].value == libva::VA_ATTRIB_NOT_SUPPORTED {
+            return Ok(false);
+        }
+        Ok(true)
     }
 }
 

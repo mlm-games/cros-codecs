@@ -29,6 +29,7 @@ use libva::VAProfile;
 use libva::VA_INVALID_ID;
 use libva::VA_PICTURE_H264_LONG_TERM_REFERENCE;
 use libva::VA_PICTURE_H264_SHORT_TERM_REFERENCE;
+use log::warn;
 
 use crate::backend::vaapi::encoder::tunings_to_libva_rc;
 use crate::backend::vaapi::encoder::CodedOutputPromise;
@@ -409,6 +410,28 @@ where
         picture.add_buffer(self.context().create_buffer(slice_param)?);
         picture.add_buffer(self.context().create_buffer(rc_param)?);
         picture.add_buffer(self.context().create_buffer(framerate_param)?);
+
+        if let Some(rc_buffer_size) = request.tunings.rc_buffer_size {
+            let hrd_buffer_size = rc_buffer_size as u32;
+            let hrd_buffer_fullness = hrd_buffer_size * 3 / 4;
+
+            let hrd_param = BufferType::EncMiscParameter(libva::EncMiscParameter::HRD(
+                libva::EncMiscParameterHRD::new(hrd_buffer_size, hrd_buffer_fullness),
+            ));
+            picture.add_buffer(self.context().create_buffer(hrd_param)?);
+        }
+
+        if let Some(max_frame_size) = request.tunings.max_frame_size {
+            if self.supports_max_frame_size()? {
+                let max_frame_size_param =
+                    BufferType::EncMiscParameter(libva::EncMiscParameter::MaxFrameSize(
+                        libva::EncMiscParameterBufferMaxFrameSize::new(max_frame_size as u32),
+                    ));
+                picture.add_buffer(self.context().create_buffer(max_frame_size_param)?);
+            } else {
+                warn!("Max frame size not supported");
+            }
+        }
 
         // Start processing the picture encoding
         let picture = picture.begin().context("picture begin")?;
