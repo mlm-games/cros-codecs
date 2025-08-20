@@ -74,10 +74,10 @@ pub(crate) fn tunings_to_libva_rc<const CLAMP_MIN_QP: u32, const CLAMP_MAX_QP: u
     const RESET: u32 = 0;
 
     // Don't skip frames
-    const DISABLE_FRAME_SKIP: u32 = 1;
+    const DISABLE_FRAME_SKIP: u32 = 0;
 
     // Allow bit stuffing
-    const DISABLE_BIT_STUFFING: u32 = 0;
+    const DISABLE_BIT_STUFFING: u32 = 1;
 
     // Use default
     const MB_RATE_CONTROL: u32 = 0;
