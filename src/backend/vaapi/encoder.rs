@@ -491,6 +491,7 @@ pub(crate) mod tests {
                 layout: self.frame_layout.clone(),
                 force_keyframe: false,
                 timestamp: self.counter,
+                force_idr: false,
             };
 
             self.counter += 1;

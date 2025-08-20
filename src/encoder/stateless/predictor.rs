@@ -97,12 +97,47 @@ where
         Ok(())
     }
 
+    fn adjust_tunings_for_wrap(&mut self, old_counter: usize) {
+        if old_counter == 0 {
+            return;
+        }
+
+        for (when_counter, _) in self.tunings_queue.iter_mut() {
+            if *when_counter >= old_counter {
+                *when_counter -= old_counter;
+            } else {
+                *when_counter = 0;
+            }
+        }
+    }
+
+    fn increment_counter(&mut self) {
+        let old_counter = self.counter;
+        self.counter = self.counter.wrapping_add(1) % (self.limit as usize);
+
+        if self.counter == 0 && old_counter != 0 {
+            // Counter wrapped around naturally at the limit
+            self.adjust_tunings_for_wrap(old_counter);
+        }
+    }
+
     fn next_request(&mut self) -> EncodeResult<Vec<Request>> {
         log::trace!("Pending frames in the queue: {}", self.queue.len());
 
         let mut requests = Vec::new();
-        while let Some((input, meta)) = self.queue.pop_front() {
+        while let Some((input, mut meta)) = self.queue.pop_front() {
             self.pop_tunings()?;
+
+            if meta.force_idr {
+                self.adjust_tunings_for_wrap(self.counter);
+                self.counter = 0;
+                meta.force_keyframe = true;
+            }
+
+            if self.counter == 0 && !meta.force_idr {
+                // Natural IDR due to limit wrap - ensure metadata reflects this
+                meta.force_idr = true;
+            }
 
             if self.counter == 0 || meta.force_keyframe {
                 log::trace!("Requesting keyframe/IDR for timestamp={}", meta.timestamp);
@@ -114,7 +149,7 @@ where
                 let request = self.request_keyframe(input, meta, self.counter == 0)?;
 
                 requests.push(request);
-                self.counter = self.counter.wrapping_add(1) % (self.limit as usize);
+                self.increment_counter();
             } else if self.references.is_empty() {
                 log::trace!("Awaiting more reconstructed frames");
                 // There is no enough frames reconstructed
@@ -125,7 +160,7 @@ where
                 let request = self.request_interframe(input, meta)?;
 
                 requests.push(request);
-                self.counter = self.counter.wrapping_add(1) % (self.limit as usize);
+                self.increment_counter();
 
                 break;
             }
@@ -243,6 +278,7 @@ mod tests {
                 planes: vec![],
             },
             force_keyframe,
+            force_idr: false,
         }
     }
 

@@ -86,6 +86,7 @@ pub struct FrameMetadata {
     pub timestamp: u64,
     pub layout: FrameLayout,
     pub force_keyframe: bool,
+    pub force_idr: bool,
 }
 
 /// Encoder's coded output with contained frame.
@@ -415,8 +416,12 @@ pub(crate) mod tests {
                 panic!("Unrecognized frame layout used during test");
             }
 
-            let meta =
-                FrameMetadata { timestamp, layout: frame.layout.clone(), force_keyframe: false };
+            let meta = FrameMetadata {
+                timestamp,
+                layout: frame.layout.clone(),
+                force_keyframe: false,
+                force_idr: false,
+            };
 
             (meta, frame)
         })

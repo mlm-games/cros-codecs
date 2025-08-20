@@ -543,8 +543,12 @@ pub(super) mod tests {
 
         upload_test_frame_nv12(&display, &surface, 0.0);
 
-        let input_meta =
-            FrameMetadata { layout: frame_layout, force_keyframe: false, timestamp: 0 };
+        let input_meta = FrameMetadata {
+            layout: frame_layout,
+            force_keyframe: false,
+            timestamp: 0,
+            force_idr: false,
+        };
 
         let pic = backend.import_picture(&input_meta, surface).unwrap();
 
