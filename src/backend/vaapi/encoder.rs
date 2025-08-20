@@ -5,6 +5,7 @@
 use std::any::Any;
 use std::marker::PhantomData;
 use std::rc::Rc;
+use std::sync::Arc;
 
 use anyhow::anyhow;
 use libva::Config;
@@ -172,7 +173,7 @@ where
     H: std::borrow::Borrow<Surface<M>>,
 {
     pub fn new(
-        display: Rc<Display>,
+        display: Arc<Display>,
         va_profile: VAProfile::Type,
         fourcc: Fourcc,
         coded_size: Resolution,
@@ -210,7 +211,7 @@ where
         )?;
 
         let mut scratch_pool = VaSurfacePool::new(
-            Rc::clone(&display),
+            Arc::clone(&display),
             rt_format,
             Some(UsageHint::USAGE_HINT_ENCODER),
             coded_size,

@@ -5,6 +5,7 @@
 use std::any::Any;
 use std::borrow::Borrow;
 use std::rc::Rc;
+use std::sync::Arc;
 
 use anyhow::Context;
 use libva::BufferType;
@@ -433,7 +434,7 @@ where
 
 impl<V: VideoFrame> StatelessEncoder<V, VaapiBackend<V::MemDescriptor, Surface<V::MemDescriptor>>> {
     pub fn new_vaapi(
-        display: Rc<Display>,
+        display: Arc<Display>,
         config: EncoderConfig,
         fourcc: Fourcc,
         coded_size: Resolution,

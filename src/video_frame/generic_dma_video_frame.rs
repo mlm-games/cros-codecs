@@ -12,11 +12,9 @@ use std::iter::zip;
 use std::num::NonZeroUsize;
 use std::os::fd::{AsFd, AsRawFd, BorrowedFd, FromRawFd};
 use std::ptr::NonNull;
-#[cfg(feature = "vaapi")]
-use std::rc::Rc;
 use std::slice;
 use std::sync::atomic::{fence, Ordering};
-#[cfg(feature = "v4l2")]
+#[cfg(any(feature = "vaapi", feature = "v4l2"))]
 use std::sync::Arc;
 
 use crate::video_frame::{ReadMapping, VideoFrame, WriteMapping};
@@ -514,7 +512,7 @@ impl VideoFrame for GenericDmaVideoFrame {
     fn process_dqbuf(&mut self, _device: Arc<Device>, _format: &Format, _buf: &V4l2Buffer) {}
 
     #[cfg(feature = "vaapi")]
-    fn to_native_handle(&self, display: &Rc<Display>) -> Result<Self::NativeHandle, String> {
+    fn to_native_handle(&self, display: &Arc<Display>) -> Result<Self::NativeHandle, String> {
         if self.is_compressed() {
             return Err("Compressed buffer export to VA-API is not currently supported".to_string());
         }

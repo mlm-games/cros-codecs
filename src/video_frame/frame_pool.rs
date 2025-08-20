@@ -3,8 +3,6 @@
 // found in the LICENSE file.
 
 use std::collections::VecDeque;
-#[cfg(feature = "vaapi")]
-use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::Weak;
@@ -74,7 +72,7 @@ impl<V: VideoFrame> VideoFrame for PooledVideoFrame<V> {
     }
 
     #[cfg(feature = "vaapi")]
-    fn to_native_handle(&self, display: &Rc<Display>) -> Result<Self::NativeHandle, String> {
+    fn to_native_handle(&self, display: &Arc<Display>) -> Result<Self::NativeHandle, String> {
         self.inner.as_ref().unwrap().to_native_handle(display)
     }
 }

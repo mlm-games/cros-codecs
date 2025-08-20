@@ -4,9 +4,7 @@
 
 use std::cell::RefCell;
 use std::fmt::Debug;
-#[cfg(feature = "vaapi")]
-use std::rc::Rc;
-#[cfg(feature = "v4l2")]
+#[cfg(any(feature = "vaapi", feature = "v4l2"))]
 use std::sync::Arc;
 
 use crate::utils::align_up;
@@ -274,7 +272,7 @@ pub trait VideoFrame: Send + Sync + Sized + Debug + 'static {
     fn process_dqbuf(&mut self, device: Arc<Device>, format: &Format, buf: &V4l2Buffer);
 
     #[cfg(feature = "vaapi")]
-    fn to_native_handle(&self, display: &Rc<Display>) -> Result<Self::NativeHandle, String>;
+    fn to_native_handle(&self, display: &Arc<Display>) -> Result<Self::NativeHandle, String>;
 }
 
 // Rust has restrictions about implementing foreign types, so this is a stupid workaround to get

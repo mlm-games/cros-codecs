@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 use std::rc::Rc;
+use std::sync::Arc;
 
 use anyhow::anyhow;
 use anyhow::Context as AnyhowContext;
@@ -546,7 +547,7 @@ impl<V: VideoFrame> StatelessH264DecoderBackend for VaapiBackend<V> {
 impl<V: VideoFrame> StatelessDecoder<H264, VaapiBackend<V>> {
     // Creates a new instance of the decoder using the VAAPI backend.
     pub fn new_vaapi(
-        display: Rc<Display>,
+        display: Arc<Display>,
         blocking_mode: BlockingMode,
     ) -> Result<Self, NewStatelessDecoderError> {
         Self::new(VaapiBackend::new(display, false), blocking_mode)
