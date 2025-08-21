@@ -89,7 +89,7 @@ where
 
             // SAFETY: checked in loop condition
             let (_, tunings) = self.tunings_queue.pop_front().unwrap();
-            log::info!("Applying tuning {tunings:?}");
+            log::debug!("Applying tuning {tunings:?}");
             self.apply_tunings(&tunings)?;
             self.tunings = tunings;
         }
