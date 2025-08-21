@@ -433,6 +433,18 @@ where
             }
         }
 
+        if let Some(quality) = request.tunings.quality {
+            if self.supports_quality_range(quality)? {
+                let quality_param =
+                    BufferType::EncMiscParameter(libva::EncMiscParameter::QualityLevel(
+                        libva::EncMiscParameterBufferQualityLevel::new(quality),
+                    ));
+                picture.add_buffer(self.context().create_buffer(quality_param)?);
+            } else {
+                warn!("Quality level not supported");
+            }
+        }
+
         // Start processing the picture encoding
         let picture = picture.begin().context("picture begin")?;
         let picture = picture.render().context("picture render")?;

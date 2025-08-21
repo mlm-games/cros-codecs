@@ -83,6 +83,8 @@ pub struct Tunings {
     pub rc_buffer_size: Option<u32>,
     /// Maximum frame size, in bits
     pub max_frame_size: Option<u32>,
+    /// Codec and implementation defined quality
+    pub quality: Option<u32>,
 }
 
 impl Default for Tunings {
@@ -94,6 +96,7 @@ impl Default for Tunings {
             max_quality: u32::MAX,
             rc_buffer_size: None,
             max_frame_size: None,
+            quality: None,
         }
     }
 }

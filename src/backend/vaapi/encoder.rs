@@ -294,6 +294,21 @@ where
         }
         Ok(true)
     }
+
+    pub(crate) fn supports_quality_range(&self, quality: u32) -> StatelessBackendResult<bool> {
+        let display = self.context().display();
+        let mut attrs = [libva::VAConfigAttrib {
+            type_: libva::VAConfigAttribType::VAConfigAttribEncQualityRange,
+            value: 0,
+        }];
+
+        display.get_config_attributes(self.va_profile, self.entrypoint, &mut attrs)?;
+
+        if attrs[0].value == libva::VA_ATTRIB_NOT_SUPPORTED || quality > attrs[0].value {
+            return Ok(false);
+        }
+        Ok(true)
+    }
 }
 
 impl<M, Handle> StatelessEncoderBackendImport<Handle, Handle> for VaapiBackend<M, Handle>
