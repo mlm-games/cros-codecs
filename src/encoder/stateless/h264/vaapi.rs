@@ -11,6 +11,8 @@ use anyhow::Context;
 use libva::BufferType;
 use libva::Display;
 use libva::EncCodedBuffer;
+use libva::EncPackedHeaderParameter;
+use libva::EncPackedHeaderType;
 use libva::EncPictureParameter;
 use libva::EncPictureParameterBufferH264;
 use libva::EncSequenceParameter;
@@ -39,6 +41,8 @@ use crate::codec::h264::parser::Pps;
 use crate::codec::h264::parser::Profile;
 use crate::codec::h264::parser::SliceHeader;
 use crate::codec::h264::parser::Sps;
+use crate::codec::h264::synthesizer::Synthesizer;
+use crate::codec::h264::synthesizer::SynthesizerResult;
 use crate::encoder::h264::EncoderConfig;
 use crate::encoder::h264::H264;
 use crate::encoder::stateless::h264::predictor::MAX_QP;
@@ -347,6 +351,42 @@ where
             header.slice_beta_offset_div2,
         )))
     }
+
+    fn build_enc_packed_slice_param_and_data(
+        request: &Request<'_, H>,
+    ) -> SynthesizerResult<(BufferType, BufferType)> {
+        const ENABLE_EMULATION_PREVENTION: bool = false;
+        let (buffer, length_in_bits) =
+            Self::build_slice_header(request, ENABLE_EMULATION_PREVENTION)?;
+        let packed_slice_param =
+            BufferType::EncPackedHeaderParameter(EncPackedHeaderParameter::new(
+                EncPackedHeaderType::Slice,
+                length_in_bits as u32,
+                ENABLE_EMULATION_PREVENTION,
+            ));
+        let packed_slice_data = BufferType::EncPackedHeaderData(buffer);
+        Ok((packed_slice_param, packed_slice_data))
+    }
+
+    fn build_slice_header(
+        request: &Request<'_, H>,
+        ep_enabled: bool,
+    ) -> SynthesizerResult<(Vec<u8>, usize)> {
+        let mut buffer = Vec::new();
+
+        let num_trailing_bits = Synthesizer::<SliceHeader, _>::synthesize(
+            &request.header,
+            &request.sps,
+            &request.pps,
+            request.is_idr,
+            request.dpb_meta.is_reference,
+            &mut buffer,
+            ep_enabled,
+        )?;
+
+        let length_in_bits = buffer.len() * 8 - num_trailing_bits as usize;
+        Ok((buffer, length_in_bits))
+    }
 }
 
 impl<M, H> StatelessH264EncoderBackend for VaapiBackend<M, H>
@@ -388,6 +428,17 @@ where
             .map(|entry| entry as Rc<dyn Any>)
             .collect();
 
+        let packed_slice_header_buffers = if self
+            .supports_packed_header(libva::VA_ENC_PACKED_HEADER_SLICE)?
+        {
+            Some(
+                Self::build_enc_packed_slice_param_and_data(&request)
+                    .map_err(|e| anyhow::anyhow!("Failed to build packed slice header: {}", e))?,
+            )
+        } else {
+            None
+        };
+
         // Clone picture using [`Picture::new_from_same_surface`] to avoid
         // creatig a shared cell picture between its references and processed
         // picture.
@@ -408,6 +459,12 @@ where
         picture.add_buffer(self.context().create_buffer(seq_param)?);
         picture.add_buffer(self.context().create_buffer(pic_param)?);
         picture.add_buffer(self.context().create_buffer(slice_param)?);
+
+        if let Some((packed_slice_param, packed_slice_data)) = packed_slice_header_buffers {
+            picture.add_buffer(self.context().create_buffer(packed_slice_param)?);
+            picture.add_buffer(self.context().create_buffer(packed_slice_data)?);
+        }
+
         picture.add_buffer(self.context().create_buffer(rc_param)?);
         picture.add_buffer(self.context().create_buffer(framerate_param)?);
 
@@ -450,18 +507,12 @@ where
         let picture = picture.render().context("picture render")?;
         let picture = picture.end().context("picture end")?;
 
-        // HACK: Make sure that slice nalu start code is at least 4 bytes.
-        // TODO: Use packed headers to supply slice header with nalu start code of size 4 and get
-        // rid of this hack.
-        let mut coded_output = request.coded_output;
-        coded_output.push(0);
-
         // libva will handle the synchronization of reconstructed surface with implicit fences.
         // Therefore return the reconstructed frame immediately.
         let reference_promise = ReadyPromise::from(recon);
 
         let bitstream_promise =
-            CodedOutputPromise::new(picture, references, coded_buf, coded_output);
+            CodedOutputPromise::new(picture, references, coded_buf, request.coded_output);
 
         Ok((reference_promise, bitstream_promise))
     }

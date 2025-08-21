@@ -9,11 +9,16 @@ use crate::codec::h264::nalu_writer::NaluWriterError;
 use crate::codec::h264::parser::HrdParams;
 use crate::codec::h264::parser::NaluType;
 use crate::codec::h264::parser::Pps;
+use crate::codec::h264::parser::SliceHeader;
+#[cfg(feature = "vaapi")]
+use crate::codec::h264::parser::SliceType;
 use crate::codec::h264::parser::Sps;
 use crate::codec::h264::parser::DEFAULT_4X4_INTER;
 use crate::codec::h264::parser::DEFAULT_4X4_INTRA;
 use crate::codec::h264::parser::DEFAULT_8X8_INTER;
 use crate::codec::h264::parser::DEFAULT_8X8_INTRA;
+#[cfg(feature = "vaapi")]
+use crate::encoder::stateless::h264::IsReference;
 
 mod private {
     pub trait NaluStruct {}
@@ -22,6 +27,8 @@ mod private {
 impl private::NaluStruct for Sps {}
 
 impl private::NaluStruct for Pps {}
+
+impl private::NaluStruct for SliceHeader {}
 
 #[derive(Debug)]
 pub enum SynthesizerError {
@@ -440,6 +447,291 @@ impl<'n, W: Write> Synthesizer<'n, Pps, W> {
         }
 
         self.se(self.nalu.second_chroma_qp_index_offset)?;
+
+        Ok(())
+    }
+}
+
+#[cfg(feature = "vaapi")]
+pub type NumTrailingBits = u8;
+
+#[cfg(feature = "vaapi")]
+impl<'n, W: Write> Synthesizer<'n, SliceHeader, W> {
+    pub fn synthesize(
+        header: &'n SliceHeader,
+        sps: &'n Sps,
+        pps: &'n Pps,
+        is_idr: bool,
+        is_ref: IsReference,
+        writer: W,
+        ep_enabled: bool,
+    ) -> SynthesizerResult<NumTrailingBits> {
+        let mut s = Self { writer: NaluWriter::<W>::new(writer, ep_enabled), nalu: header };
+
+        let ref_idc = if is_idr {
+            3
+        } else if is_ref == IsReference::LongTerm {
+            2
+        } else if is_ref == IsReference::ShortTerm {
+            1
+        } else {
+            0
+        };
+        let nalu_type = if is_idr { NaluType::SliceIdr } else { NaluType::Slice };
+        s.writer.write_header(ref_idc, nalu_type as u8)?;
+        s.slice_header_data(sps, pps, is_idr, is_ref)?;
+        let num_trailing_bits = s.writer.flush()?;
+        Ok(num_trailing_bits)
+    }
+
+    fn slice_header_data(
+        &mut self,
+        sps: &Sps,
+        pps: &Pps,
+        is_idr: bool,
+        is_ref: IsReference,
+    ) -> SynthesizerResult<()> {
+        let hdr = self.nalu;
+
+        self.ue(hdr.first_mb_in_slice)?;
+        self.ue(hdr.slice_type as u32)?;
+        self.ue(hdr.pic_parameter_set_id)?;
+
+        if sps.separate_colour_plane_flag {
+            self.u(2, hdr.colour_plane_id)?;
+        }
+
+        let frame_num_bits = sps.log2_max_frame_num_minus4 as usize + 4;
+        self.u(frame_num_bits, hdr.frame_num)?;
+
+        if !sps.frame_mbs_only_flag {
+            self.u(1, hdr.field_pic_flag as u32)?;
+            if hdr.field_pic_flag {
+                self.u(1, hdr.bottom_field_flag as u32)?;
+            }
+        }
+
+        if is_idr {
+            self.ue(hdr.idr_pic_id)?;
+        }
+
+        if sps.pic_order_cnt_type == 0 {
+            let pic_order_cnt_lsb_bits = sps.log2_max_pic_order_cnt_lsb_minus4 as usize + 4;
+            self.u(pic_order_cnt_lsb_bits, hdr.pic_order_cnt_lsb)?;
+            if pps.bottom_field_pic_order_in_frame_present_flag && !hdr.field_pic_flag {
+                self.se(hdr.delta_pic_order_cnt_bottom)?;
+            }
+        }
+
+        if sps.pic_order_cnt_type == 1 && !sps.delta_pic_order_always_zero_flag {
+            self.se(hdr.delta_pic_order_cnt[0])?;
+            if pps.bottom_field_pic_order_in_frame_present_flag && !hdr.field_pic_flag {
+                self.se(hdr.delta_pic_order_cnt[1])?;
+            }
+        }
+
+        if pps.redundant_pic_cnt_present_flag {
+            self.ue(hdr.redundant_pic_cnt)?;
+        }
+
+        if hdr.slice_type == SliceType::B {
+            self.u(1, hdr.direct_spatial_mv_pred_flag as u32)?;
+        }
+
+        if hdr.slice_type == SliceType::P
+            || hdr.slice_type == SliceType::Sp
+            || hdr.slice_type == SliceType::B
+        {
+            self.u(1, hdr.num_ref_idx_active_override_flag as u32)?;
+            if hdr.num_ref_idx_active_override_flag {
+                self.ue(hdr.num_ref_idx_l0_active_minus1)?;
+                if hdr.slice_type == SliceType::B {
+                    self.ue(hdr.num_ref_idx_l1_active_minus1)?;
+                }
+            }
+        }
+
+        self.ref_pic_list_modification(hdr)?;
+
+        if (pps.weighted_pred_flag
+            && (hdr.slice_type == SliceType::P || hdr.slice_type == SliceType::Sp))
+            || (pps.weighted_bipred_idc == 1 && hdr.slice_type == SliceType::B)
+        {
+            self.pred_weight_table(hdr, sps)?;
+        }
+
+        if is_ref != IsReference::No {
+            self.dec_ref_pic_marking(hdr, is_idr)?;
+        }
+
+        if pps.entropy_coding_mode_flag
+            && hdr.slice_type != SliceType::I
+            && hdr.slice_type != SliceType::Si
+        {
+            self.ue(hdr.cabac_init_idc)?;
+        }
+
+        self.se(hdr.slice_qp_delta)?;
+
+        if hdr.slice_type == SliceType::Sp || hdr.slice_type == SliceType::Si {
+            if hdr.slice_type == SliceType::Sp {
+                self.u(1, hdr.sp_for_switch_flag as u32)?;
+            }
+            self.se(hdr.slice_qs_delta)?;
+        }
+
+        if pps.deblocking_filter_control_present_flag {
+            self.ue(hdr.disable_deblocking_filter_idc)?;
+            if hdr.disable_deblocking_filter_idc != 1 {
+                self.se(hdr.slice_alpha_c0_offset_div2)?;
+                self.se(hdr.slice_beta_offset_div2)?;
+            }
+        }
+
+        if pps.num_slice_groups_minus1 > 0 {
+            // Slice groups are not supported, this should have been caught earlier
+            return Err(SynthesizerError::Unsupported);
+        }
+
+        Ok(())
+    }
+
+    fn ref_pic_list_modification(&mut self, hdr: &SliceHeader) -> SynthesizerResult<()> {
+        let slice_type_mod5 = hdr.slice_type as u8 % 5;
+
+        if slice_type_mod5 != 2 && slice_type_mod5 != 4 {
+            self.u(1, hdr.ref_pic_list_modification_flag_l0 as u32)?;
+            if hdr.ref_pic_list_modification_flag_l0 {
+                for modification in &hdr.ref_pic_list_modification_l0 {
+                    self.ue(modification.modification_of_pic_nums_idc)?;
+                    if modification.modification_of_pic_nums_idc == 0
+                        || modification.modification_of_pic_nums_idc == 1
+                    {
+                        self.ue(modification.abs_diff_pic_num_minus1)?;
+                    } else if modification.modification_of_pic_nums_idc == 2 {
+                        self.ue(modification.long_term_pic_num)?;
+                    }
+                }
+                self.ue(3u32)?;
+            }
+        }
+
+        if slice_type_mod5 == 1 {
+            self.u(1, hdr.ref_pic_list_modification_flag_l1 as u32)?;
+            if hdr.ref_pic_list_modification_flag_l1 {
+                for modification in &hdr.ref_pic_list_modification_l1 {
+                    self.ue(modification.modification_of_pic_nums_idc)?;
+                    if modification.modification_of_pic_nums_idc == 0
+                        || modification.modification_of_pic_nums_idc == 1
+                    {
+                        self.ue(modification.abs_diff_pic_num_minus1)?;
+                    } else if modification.modification_of_pic_nums_idc == 2 {
+                        self.ue(modification.long_term_pic_num)?;
+                    }
+                }
+                self.ue(3u32)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    fn pred_weight_table(&mut self, hdr: &SliceHeader, sps: &Sps) -> SynthesizerResult<()> {
+        let pwt = &hdr.pred_weight_table;
+        let chroma_array_type = sps.chroma_array_type();
+
+        self.ue(pwt.luma_log2_weight_denom)?;
+        if chroma_array_type != 0 {
+            self.ue(pwt.chroma_log2_weight_denom)?;
+        }
+
+        let num_ref_idx_l0 = (hdr.num_ref_idx_l0_active_minus1 + 1) as usize;
+        for i in 0..num_ref_idx_l0 {
+            let luma_weight_l0_flag = pwt.luma_weight_l0[i] != (1 << pwt.luma_log2_weight_denom);
+            self.u(1, luma_weight_l0_flag as u32)?;
+            if luma_weight_l0_flag {
+                self.se(pwt.luma_weight_l0[i])?;
+                self.se(pwt.luma_offset_l0[i])?;
+            }
+
+            if chroma_array_type != 0 {
+                let default_weight = 1 << pwt.chroma_log2_weight_denom;
+                let chroma_weight_l0_flag = pwt.chroma_weight_l0[i][0] != default_weight
+                    || pwt.chroma_weight_l0[i][1] != default_weight
+                    || pwt.chroma_offset_l0[i][0] != 0
+                    || pwt.chroma_offset_l0[i][1] != 0;
+                self.u(1, chroma_weight_l0_flag as u32)?;
+                if chroma_weight_l0_flag {
+                    for j in 0..2 {
+                        self.se(pwt.chroma_weight_l0[i][j])?;
+                        self.se(pwt.chroma_offset_l0[i][j])?;
+                    }
+                }
+            }
+        }
+
+        if hdr.slice_type as u8 % 5 == 1 {
+            let num_ref_idx_l1 = (hdr.num_ref_idx_l1_active_minus1 + 1) as usize;
+            for i in 0..num_ref_idx_l1 {
+                let luma_weight_l1_flag =
+                    pwt.luma_weight_l1[i] != (1 << pwt.luma_log2_weight_denom) as i16;
+                self.u(1, luma_weight_l1_flag as u32)?;
+                if luma_weight_l1_flag {
+                    self.se(pwt.luma_weight_l1[i])?;
+                    self.se(pwt.luma_offset_l1[i])?;
+                }
+
+                if chroma_array_type != 0 {
+                    let default_weight = (1 << pwt.chroma_log2_weight_denom) as i16;
+                    let chroma_weight_l1_flag = pwt.chroma_weight_l1[i][0] != default_weight
+                        || pwt.chroma_weight_l1[i][1] != default_weight
+                        || pwt.chroma_offset_l1[i][0] != 0
+                        || pwt.chroma_offset_l1[i][1] != 0;
+                    self.u(1, chroma_weight_l1_flag as u32)?;
+                    if chroma_weight_l1_flag {
+                        for j in 0..2 {
+                            self.se(pwt.chroma_weight_l1[i][j])?;
+                            self.se(pwt.chroma_offset_l1[i][j])?;
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    fn dec_ref_pic_marking(&mut self, hdr: &SliceHeader, is_idr: bool) -> SynthesizerResult<()> {
+        let rpm = &hdr.dec_ref_pic_marking;
+
+        if is_idr {
+            self.u(1, rpm.no_output_of_prior_pics_flag as u32)?;
+            self.u(1, rpm.long_term_reference_flag as u32)?;
+        } else {
+            self.u(1, rpm.adaptive_ref_pic_marking_mode_flag as u32)?;
+            if rpm.adaptive_ref_pic_marking_mode_flag {
+                for marking in &rpm.inner {
+                    self.ue(marking.memory_management_control_operation)?;
+                    if marking.memory_management_control_operation == 1
+                        || marking.memory_management_control_operation == 3
+                    {
+                        self.ue(marking.difference_of_pic_nums_minus1)?;
+                    }
+                    if marking.memory_management_control_operation == 2 {
+                        self.ue(marking.long_term_pic_num)?;
+                    }
+                    if marking.memory_management_control_operation == 3
+                        || marking.memory_management_control_operation == 6
+                    {
+                        self.ue(marking.long_term_frame_idx)?;
+                    }
+                    if marking.memory_management_control_operation == 4 {
+                        self.ue(marking.max_long_term_frame_idx.to_value_plus1())?;
+                    }
+                }
+                self.ue(0u32)?;
+            }
+        }
 
         Ok(())
     }
