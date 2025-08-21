@@ -484,6 +484,37 @@ impl<V: VideoFrame> StatelessEncoder<V, VaapiBackend<V::MemDescriptor, Surface<V
     }
 }
 
+impl<D: SurfaceMemoryDescriptor, S: std::borrow::Borrow<Surface<D>> + 'static>
+    StatelessEncoder<S, VaapiBackend<D, S>>
+{
+    pub fn new_native_vaapi(
+        display: Arc<Display>,
+        config: EncoderConfig,
+        fourcc: Fourcc,
+        coded_size: Resolution,
+        low_power: bool,
+        blocking_mode: BlockingMode,
+    ) -> EncodeResult<Self> {
+        let va_profile = match config.profile {
+            Profile::Baseline => VAProfile::VAProfileH264ConstrainedBaseline,
+            Profile::Main => VAProfile::VAProfileH264Main,
+            Profile::High => VAProfile::VAProfileH264High,
+            _ => return Err(StatelessBackendError::UnsupportedProfile.into()),
+        };
+
+        let bitrate_control = match config.initial_tunings.rate_control {
+            RateControl::ConstantBitrate(_) => libva::VA_RC_CBR,
+            RateControl::VariableBitrate { .. } => libva::VA_RC_VBR,
+            RateControl::ConstantQuality(_) => libva::VA_RC_CQP,
+        };
+
+        let backend =
+            VaapiBackend::new(display, va_profile, fourcc, coded_size, bitrate_control, low_power)?;
+
+        Self::new_h264(backend, config, blocking_mode)
+    }
+}
+
 #[cfg(test)]
 pub(super) mod tests {
     use libva::Display;
@@ -685,7 +716,7 @@ pub(super) mod tests {
             ],
         };
 
-        let mut encoder = VaapiH264Encoder::new_vaapi(
+        let mut encoder = VaapiH264Encoder::new_native_vaapi(
             Rc::clone(&display),
             config,
             frame_layout.format.0,
