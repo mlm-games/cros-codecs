@@ -535,8 +535,7 @@ impl VideoFrame for GenericDmaVideoFrame {
                 Some(u32::from(self.layout.format.0)),
                 self.resolution().width,
                 self.resolution().height,
-                // TODO: Should we add USAGE_HINT_ENCODER support?
-                Some(UsageHint::USAGE_HINT_DECODER),
+                Some(UsageHint::USAGE_HINT_ENCODER),
                 vec![self.clone()],
             )
             .map_err(|_| "Error importing GenericDmaVideoFrame to VA-API".to_string())?;
