@@ -177,13 +177,19 @@ impl<W: Write> NaluWriter<W> {
     /// Writes a H.264 NALU header.
     pub fn write_header(&mut self, idc: u8, _type: u8) -> NaluWriterResult<()> {
         self.0.flush()?;
-        self.0.inner_mut().write_header(idc, _type)?;
+        let _num_bytes = self.0.inner_mut().write_header(idc, _type)?;
+        // self.0.bits_written += num_bytes * 8;
         Ok(())
     }
 
     /// Returns `true` if next bits will be aligned to 8
     pub fn aligned(&self) -> bool {
         !self.0.has_data_pending()
+    }
+
+    /// Returns the number of trailing bits in the last byte.
+    pub fn flush(&mut self) -> NaluWriterResult<u8> {
+        Ok(self.0.flush()?)
     }
 }
 

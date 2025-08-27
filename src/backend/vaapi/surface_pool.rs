@@ -8,6 +8,7 @@ use std::collections::BTreeMap;
 use std::collections::VecDeque;
 use std::rc::Rc;
 use std::rc::Weak;
+use std::sync::Arc;
 
 use libva::Display;
 use libva::Surface;
@@ -79,7 +80,7 @@ impl<M: SurfaceMemoryDescriptor> Drop for PooledVaSurface<M> {
 }
 
 struct VaSurfacePoolInner<M: SurfaceMemoryDescriptor> {
-    display: Rc<Display>,
+    display: Arc<Display>,
     rt_format: u32,
     usage_hint: Option<libva::UsageHint>,
     coded_resolution: Resolution,
@@ -133,7 +134,7 @@ impl<M: SurfaceMemoryDescriptor> VaSurfacePool<M> {
     /// * `usage_hint` - hint about how the surfaces from this pool will be used.
     /// * `coded_resolution` - resolution of the surfaces.
     pub fn new(
-        display: Rc<Display>,
+        display: Arc<Display>,
         rt_format: u32,
         usage_hint: Option<libva::UsageHint>,
         coded_resolution: Resolution,

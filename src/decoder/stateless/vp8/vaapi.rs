@@ -4,6 +4,7 @@
 
 use std::convert::TryFrom;
 use std::rc::Rc;
+use std::sync::Arc;
 
 use anyhow::anyhow;
 use anyhow::Context;
@@ -290,7 +291,7 @@ impl<V: VideoFrame> StatelessVp8DecoderBackend for VaapiBackend<V> {
 impl<V: VideoFrame> StatelessDecoder<Vp8, VaapiBackend<V>> {
     // Creates a new instance of the decoder using the VAAPI backend.
     pub fn new_vaapi(
-        display: Rc<Display>,
+        display: Arc<Display>,
         blocking_mode: BlockingMode,
     ) -> Result<Self, NewStatelessDecoderError> {
         Self::new(VaapiBackend::new(display, false), blocking_mode)

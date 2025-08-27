@@ -191,7 +191,7 @@ impl<V: VideoFrame> VaapiDecodedHandle<V> {
 }
 
 pub struct VaapiBackend<V: VideoFrame> {
-    pub display: Rc<Display>,
+    pub display: Arc<Display>,
     pub context: Rc<Context>,
     stream_info: StreamInfo,
     // TODO: We should try to support context reuse
@@ -200,7 +200,7 @@ pub struct VaapiBackend<V: VideoFrame> {
 }
 
 impl<V: VideoFrame> VaapiBackend<V> {
-    pub(crate) fn new(display: Rc<libva::Display>, supports_context_reuse: bool) -> Self {
+    pub(crate) fn new(display: Arc<libva::Display>, supports_context_reuse: bool) -> Self {
         let init_stream_info = StreamInfo {
             format: DecodedFormat::NV12,
             coded_resolution: Resolution::from((16, 16)),

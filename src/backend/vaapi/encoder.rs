@@ -5,6 +5,7 @@
 use std::any::Any;
 use std::marker::PhantomData;
 use std::rc::Rc;
+use std::sync::Arc;
 
 use anyhow::anyhow;
 use libva::Config;
@@ -17,6 +18,7 @@ use libva::PictureEnd;
 use libva::Surface;
 use libva::SurfaceMemoryDescriptor;
 use libva::UsageHint;
+use libva::VAEntrypoint;
 use libva::VAEntrypoint::VAEntrypointEncSlice;
 use libva::VAEntrypoint::VAEntrypointEncSliceLP;
 use libva::VAProfile;
@@ -52,11 +54,14 @@ impl From<libva::VaError> for StatelessBackendError {
 pub(crate) fn tunings_to_libva_rc<const CLAMP_MIN_QP: u32, const CLAMP_MAX_QP: u32>(
     tunings: &Tunings,
 ) -> StatelessBackendResult<libva::EncMiscParameterRateControl> {
-    let bits_per_second = tunings.rate_control.bitrate_target().unwrap_or(0);
-    let bits_per_second = u32::try_from(bits_per_second).map_err(|e| anyhow::anyhow!(e))?;
+    let bits_per_second = tunings.rate_control.bitrate_maximum().unwrap_or(0);
+    let target_bits_per_second = tunings.rate_control.bitrate_target().unwrap_or(bits_per_second);
 
-    // At the moment we don't support variable bitrate therefore target 100%
-    const TARGET_PERCENTAGE: u32 = 100;
+    let bits_per_second = u32::try_from(bits_per_second).map_err(|e| anyhow::anyhow!(e))?;
+    let target_bits_per_second =
+        u32::try_from(target_bits_per_second).map_err(|e| anyhow::anyhow!(e))?;
+
+    let target_percentage: u32 = 100 * target_bits_per_second / bits_per_second;
 
     // Window size in ms that the RC should apply to
     const WINDOW_SIZE: u32 = 1_500;
@@ -70,10 +75,10 @@ pub(crate) fn tunings_to_libva_rc<const CLAMP_MIN_QP: u32, const CLAMP_MAX_QP: u
     const RESET: u32 = 0;
 
     // Don't skip frames
-    const DISABLE_FRAME_SKIP: u32 = 1;
+    const DISABLE_FRAME_SKIP: u32 = 0;
 
     // Allow bit stuffing
-    const DISABLE_BIT_STUFFING: u32 = 0;
+    const DISABLE_BIT_STUFFING: u32 = 1;
 
     // Use default
     const MB_RATE_CONTROL: u32 = 0;
@@ -113,7 +118,7 @@ pub(crate) fn tunings_to_libva_rc<const CLAMP_MIN_QP: u32, const CLAMP_MAX_QP: u
 
     Ok(libva::EncMiscParameterRateControl::new(
         bits_per_second,
-        TARGET_PERCENTAGE,
+        target_percentage,
         WINDOW_SIZE,
         initial_qp,
         min_qp,
@@ -161,7 +166,8 @@ where
     /// VA context used for encoding.
     context: Rc<Context>,
 
-    _va_profile: VAProfile::Type,
+    va_profile: VAProfile::Type,
+    entrypoint: VAEntrypoint::Type,
     scratch_pool: VaSurfacePool<()>,
     _phantom: PhantomData<(M, H)>,
 }
@@ -172,7 +178,7 @@ where
     H: std::borrow::Borrow<Surface<M>>,
 {
     pub fn new(
-        display: Rc<Display>,
+        display: Arc<Display>,
         va_profile: VAProfile::Type,
         fourcc: Fourcc,
         coded_size: Resolution,
@@ -185,6 +191,7 @@ where
             .ok_or_else(|| StatelessBackendError::UnsupportedFormat)?;
 
         let rt_format = format_map.rt_format;
+        let entrypoint = if low_power { VAEntrypointEncSliceLP } else { VAEntrypointEncSlice };
 
         let va_config = display.create_config(
             vec![
@@ -198,7 +205,7 @@ where
                 },
             ],
             va_profile,
-            if low_power { VAEntrypointEncSliceLP } else { VAEntrypointEncSlice },
+            entrypoint,
         )?;
 
         let context = display.create_context::<M>(
@@ -210,7 +217,7 @@ where
         )?;
 
         let mut scratch_pool = VaSurfacePool::new(
-            Rc::clone(&display),
+            Arc::clone(&display),
             rt_format,
             Some(UsageHint::USAGE_HINT_ENCODER),
             coded_size,
@@ -223,7 +230,8 @@ where
             va_config,
             context,
             scratch_pool,
-            _va_profile: va_profile,
+            va_profile,
+            entrypoint,
             _phantom: Default::default(),
         })
     }
@@ -270,6 +278,51 @@ where
             self.scratch_pool.get_surface().ok_or(StatelessBackendError::OutOfResources)?;
 
         Ok(Reconstructed(surface))
+    }
+
+    pub(crate) fn supports_max_frame_size(&self) -> StatelessBackendResult<bool> {
+        let display = self.context().display();
+        let mut attrs = [libva::VAConfigAttrib {
+            type_: libva::VAConfigAttribType::VAConfigAttribMaxFrameSize,
+            value: 0,
+        }];
+
+        display.get_config_attributes(self.va_profile, self.entrypoint, &mut attrs)?;
+
+        if attrs[0].value == libva::VA_ATTRIB_NOT_SUPPORTED {
+            return Ok(false);
+        }
+        Ok(true)
+    }
+
+    pub(crate) fn supports_quality_range(&self, quality: u32) -> StatelessBackendResult<bool> {
+        let display = self.context().display();
+        let mut attrs = [libva::VAConfigAttrib {
+            type_: libva::VAConfigAttribType::VAConfigAttribEncQualityRange,
+            value: 0,
+        }];
+
+        display.get_config_attributes(self.va_profile, self.entrypoint, &mut attrs)?;
+
+        if attrs[0].value == libva::VA_ATTRIB_NOT_SUPPORTED || quality > attrs[0].value {
+            return Ok(false);
+        }
+        Ok(true)
+    }
+
+    pub(crate) fn supports_packed_header(&self, header: u32) -> StatelessBackendResult<bool> {
+        let display = self.context().display();
+        let mut attrs = [libva::VAConfigAttrib {
+            type_: libva::VAConfigAttribType::VAConfigAttribEncPackedHeaders,
+            value: 0,
+        }];
+
+        display.get_config_attributes(self.va_profile, self.entrypoint, &mut attrs)?;
+
+        if attrs[0].value == libva::VA_ATTRIB_NOT_SUPPORTED || (header & attrs[0].value) == 0 {
+            return Ok(false);
+        }
+        Ok(true)
     }
 }
 
@@ -491,6 +544,7 @@ pub(crate) mod tests {
                 layout: self.frame_layout.clone(),
                 force_keyframe: false,
                 timestamp: self.counter,
+                force_idr: false,
             };
 
             self.counter += 1;

@@ -510,15 +510,18 @@ impl<W: Write> BitWriter<W> {
     }
 
     /// Immediately outputs any cached bits to [`std::io::Write`]
-    pub fn flush(&mut self) -> BitWriterResult<()> {
+    /// and returns the number of trailing bits in the last byte.
+    pub fn flush(&mut self) -> BitWriterResult<u8> {
+        let mut num_trailing_bits = 0;
         if self.nth_bit != 0 {
             self.out.write_all(&[self.curr_byte])?;
+            num_trailing_bits = 8 - self.nth_bit;
             self.nth_bit = 0;
             self.curr_byte = 0;
         }
 
         self.out.flush()?;
-        Ok(())
+        Ok(num_trailing_bits)
     }
 
     /// Returns `true` if ['Self`] hold data that wasn't written to [`std::io::Write`]

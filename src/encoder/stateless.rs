@@ -14,7 +14,7 @@ use crate::encoder::Tunings;
 use crate::encoder::VideoEncoder;
 use crate::BlockingMode;
 
-#[cfg(feature = "vaapi")]
+#[cfg(all(feature = "vaapi", feature = "av1"))]
 pub mod av1;
 #[cfg(feature = "vaapi")]
 pub mod h264;

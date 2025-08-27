@@ -523,6 +523,7 @@ where
             "bitrate mode",
             match rate_control {
                 RateControl::ConstantBitrate(_) => VideoBitrateMode::ConstantBitrate,
+                RateControl::VariableBitrate { .. } => todo!(),
                 RateControl::ConstantQuality(_) => VideoBitrateMode::ConstantQuality,
             },
         )?;
@@ -1217,6 +1218,7 @@ pub(crate) mod tests {
                 timestamp: self.counter,
                 layout: self.frame_layout.clone(),
                 force_keyframe: false,
+                force_idr: false,
             };
 
             let handle = TestMmapFrame { meta: meta.clone(), frame_count: self.max_count };
@@ -1326,6 +1328,7 @@ pub(crate) mod tests {
                 timestamp: self.counter,
                 layout: layout.clone(),
                 force_keyframe: false,
+                force_idr: false,
             };
 
             let frame = DmabufFrame { fds, layout };

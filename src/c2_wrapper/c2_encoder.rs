@@ -250,6 +250,7 @@ where
                     timestamp: job.timestamp,
                     layout: Default::default(),
                     force_keyframe: false,
+                    force_idr: false,
                 };
                 #[cfg(feature = "vaapi")]
                 let encode_result = self.encoder.encode(meta, frame);

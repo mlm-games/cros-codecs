@@ -4,8 +4,10 @@
 
 use std::fmt;
 
+#[cfg(feature = "av1")]
 pub mod av1;
 pub mod h264;
+#[cfg(feature = "h265")]
 pub mod h265;
 pub mod vp8;
 pub mod vp9;
@@ -13,6 +15,7 @@ pub mod vp9;
 pub mod stateful;
 pub mod stateless;
 
+#[cfg(feature = "av1")]
 use crate::codec::av1::synthesizer::SynthesizerError as AV1SynthesizerError;
 use crate::codec::h264::synthesizer::SynthesizerError as H264SynthesizerError;
 use crate::encoder::stateful::StatefulBackendError;
@@ -24,6 +27,9 @@ use crate::FrameLayout;
 pub enum RateControl {
     /// The encoder shall maintain the constant bitrate
     ConstantBitrate(u64),
+
+    /// The encoder shall target a bitrate value, but it may vary until the maximum bitrate
+    VariableBitrate { target: u64, maximum: u64 },
 
     /// The encoder shall maintain codec specific quality parameter constant (eg. QP for H.264)
     /// disregarding bitrate.
@@ -39,6 +45,15 @@ impl RateControl {
     pub(crate) fn bitrate_target(&self) -> Option<u64> {
         match self {
             RateControl::ConstantBitrate(target) => Some(*target),
+            RateControl::VariableBitrate { target, .. } => Some(*target),
+            RateControl::ConstantQuality(_) => None,
+        }
+    }
+
+    pub(crate) fn bitrate_maximum(&self) -> Option<u64> {
+        match self {
+            RateControl::ConstantBitrate(bitrate) => Some(*bitrate),
+            RateControl::VariableBitrate { maximum, .. } => Some(*maximum),
             RateControl::ConstantQuality(_) => None,
         }
     }
@@ -64,6 +79,12 @@ pub struct Tunings {
     pub min_quality: u32,
     /// Maximum value of codec specific quality parameter constant (eg. QP for H.264)
     pub max_quality: u32,
+    /// Buffer size, in bits, used for rate control
+    pub rc_buffer_size: Option<u32>,
+    /// Maximum frame size, in bits
+    pub max_frame_size: Option<u32>,
+    /// Codec and implementation defined quality
+    pub quality: Option<u32>,
 }
 
 impl Default for Tunings {
@@ -73,6 +94,9 @@ impl Default for Tunings {
             framerate: 30,
             min_quality: 0,
             max_quality: u32::MAX,
+            rc_buffer_size: None,
+            max_frame_size: None,
+            quality: None,
         }
     }
 }
@@ -83,6 +107,7 @@ pub struct FrameMetadata {
     pub timestamp: u64,
     pub layout: FrameLayout,
     pub force_keyframe: bool,
+    pub force_idr: bool,
 }
 
 /// Encoder's coded output with contained frame.
@@ -113,6 +138,7 @@ pub enum EncodeError {
     StatelessBackendError(StatelessBackendError),
     StatefulBackendError(StatefulBackendError),
     H264SynthesizerError(H264SynthesizerError),
+    #[cfg(feature = "av1")]
     AV1SynthesizerError(AV1SynthesizerError),
 }
 
@@ -126,6 +152,7 @@ impl fmt::Display for EncodeError {
             EncodeError::StatelessBackendError(x) => write!(f, "{}", x.to_string()),
             EncodeError::StatefulBackendError(x) => write!(f, "{}", x.to_string()),
             EncodeError::H264SynthesizerError(x) => write!(f, "{}", x.to_string()),
+            #[cfg(feature = "av1")]
             EncodeError::AV1SynthesizerError(x) => write!(f, "{}", x.to_string()),
         }
     }
@@ -149,6 +176,7 @@ impl From<H264SynthesizerError> for EncodeError {
     }
 }
 
+#[cfg(feature = "av1")]
 impl From<AV1SynthesizerError> for EncodeError {
     fn from(err: AV1SynthesizerError) -> Self {
         EncodeError::AV1SynthesizerError(err)
@@ -409,8 +437,12 @@ pub(crate) mod tests {
                 panic!("Unrecognized frame layout used during test");
             }
 
-            let meta =
-                FrameMetadata { timestamp, layout: frame.layout.clone(), force_keyframe: false };
+            let meta = FrameMetadata {
+                timestamp,
+                layout: frame.layout.clone(),
+                force_keyframe: false,
+                force_idr: false,
+            };
 
             (meta, frame)
         })

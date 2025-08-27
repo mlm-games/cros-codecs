@@ -263,7 +263,6 @@ impl<Picture, Reference>
     }
 
     fn apply_tunings(&mut self, _tunings: &Tunings) -> EncodeResult<()> {
-        self.new_sequence();
         Ok(())
     }
 }

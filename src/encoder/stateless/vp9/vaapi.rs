@@ -5,6 +5,7 @@
 use std::any::Any;
 use std::borrow::Borrow;
 use std::rc::Rc;
+use std::sync::Arc;
 
 use anyhow::Context;
 use libva::BufferType;
@@ -257,7 +258,7 @@ where
 
 impl<V: VideoFrame> StatelessEncoder<V, VaapiBackend<V::MemDescriptor, Surface<V::MemDescriptor>>> {
     pub fn new_vaapi(
-        display: Rc<Display>,
+        display: Arc<Display>,
         config: EncoderConfig,
         fourcc: Fourcc,
         coded_size: Resolution,
@@ -266,6 +267,7 @@ impl<V: VideoFrame> StatelessEncoder<V, VaapiBackend<V::MemDescriptor, Surface<V
     ) -> EncodeResult<Self> {
         let bitrate_control = match config.initial_tunings.rate_control {
             RateControl::ConstantBitrate(_) => libva::VA_RC_CBR,
+            RateControl::VariableBitrate { .. } => libva::VA_RC_VBR,
             RateControl::ConstantQuality(_) => libva::VA_RC_CQP,
         };
 
@@ -364,8 +366,12 @@ pub(super) mod tests {
 
         upload_test_frame_nv12(&display, &surface, 0.0);
 
-        let input_meta =
-            FrameMetadata { layout: frame_layout, force_keyframe: false, timestamp: 0 };
+        let input_meta = FrameMetadata {
+            layout: frame_layout,
+            force_keyframe: false,
+            force_idr: false,
+            timestamp: 0,
+        };
 
         let pic = backend.import_picture(&input_meta, surface).unwrap();
 
