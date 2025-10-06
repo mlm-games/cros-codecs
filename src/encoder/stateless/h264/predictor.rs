@@ -98,6 +98,8 @@ impl<Picture, Reference> LowDelayH264<Picture, Reference> {
             .bit_depth_chroma(8)
             .aspect_ratio(1, 1)
             .timing_info(1, self.tunings.framerate * 2, false)
+            .max_num_reorder_frames(0) // must be zero to avoid webrtc rewriting Sps
+            .max_dec_frame_buffering(1) // must match max_num_ref_frames to avoid webrtc rewriting Sps
             .build();
 
         let min_qp = self.tunings.min_quality.max(MIN_QP as u32);
