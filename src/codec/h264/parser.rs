@@ -1165,6 +1165,37 @@ impl SpsBuilder {
         self
     }
 
+    pub fn bitstream_restrictions_present(mut self) -> Self {
+        if self.0.vui_parameters.bitstream_restriction_flag {
+            return self;
+        }
+        self = self.vui_parameters_present();
+        // important to set these before setting the restriction flag as max_num_order_frames
+        // only produces the default values we need when that flag is false
+        self.0.vui_parameters.max_num_reorder_frames = self.0.max_num_order_frames();
+        self.0.vui_parameters.max_dec_frame_buffering = self.0.vui_parameters.max_num_reorder_frames;
+        self.0.vui_parameters.bitstream_restriction_flag = true;
+        // Set all restrictions to the defaults
+        self.0.vui_parameters.motion_vectors_over_pic_boundaries_flag = true;
+        self.0.vui_parameters.max_bytes_per_pic_denom = 2;
+        self.0.vui_parameters.max_bits_per_mb_denom = 1;
+        self.0.vui_parameters.log2_max_mv_length_horizontal = 16;
+        self.0.vui_parameters.log2_max_mv_length_vertical = 16;
+        self
+    }
+
+    pub fn max_num_reorder_frames(mut self, value: u32) -> Self {
+        self = self.bitstream_restrictions_present();
+        self.0.vui_parameters.max_num_reorder_frames = value;
+        self
+    }
+
+    pub fn max_dec_frame_buffering(mut self, value: u32) -> Self {
+        self = self.bitstream_restrictions_present();
+        self.0.vui_parameters.max_dec_frame_buffering = value;
+        self
+    }
+
     pub fn log2_max_frame_num_minus4(mut self, value: u8) -> Self {
         self.0.log2_max_frame_num_minus4 = value;
         self
