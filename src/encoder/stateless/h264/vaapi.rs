@@ -31,6 +31,7 @@ use libva::VAProfile;
 use libva::VA_INVALID_ID;
 use libva::VA_PICTURE_H264_LONG_TERM_REFERENCE;
 use libva::VA_PICTURE_H264_SHORT_TERM_REFERENCE;
+use log::info;
 use log::warn;
 
 use crate::backend::vaapi::encoder::tunings_to_libva_rc;
@@ -82,6 +83,9 @@ where
     M: SurfaceMemoryDescriptor,
     H: std::borrow::Borrow<Surface<M>> + 'static,
 {
+    /// Emulation prevention for packed headers (SPS/PPS/Slice)
+    const ENABLE_EMULATION_PREVENTION_PACKED_HEADERS: bool = true;
+
     /// Builds an invalid [`libva::PictureH264`]. This is usually a place
     /// holder to fill staticly sized array.
     fn build_invalid_va_h264_pic_enc() -> libva::PictureH264 {
@@ -355,23 +359,66 @@ where
     fn build_enc_packed_slice_param_and_data(
         request: &Request<'_, H>,
     ) -> SynthesizerResult<(BufferType, BufferType)> {
-        const ENABLE_EMULATION_PREVENTION: bool = false;
-        let (buffer, length_in_bits) =
-            Self::build_slice_header(request, ENABLE_EMULATION_PREVENTION)?;
+        let (buffer, length_in_bits) = Self::build_slice_header(request)?;
         let packed_slice_param =
             BufferType::EncPackedHeaderParameter(EncPackedHeaderParameter::new(
                 EncPackedHeaderType::Slice,
                 length_in_bits as u32,
-                ENABLE_EMULATION_PREVENTION,
+                Self::ENABLE_EMULATION_PREVENTION_PACKED_HEADERS,
             ));
         let packed_slice_data = BufferType::EncPackedHeaderData(buffer);
         Ok((packed_slice_param, packed_slice_data))
     }
 
-    fn build_slice_header(
-        request: &Request<'_, H>,
-        ep_enabled: bool,
-    ) -> SynthesizerResult<(Vec<u8>, usize)> {
+    fn build_enc_packed_sps_param_and_data(
+        sps: &Sps,
+    ) -> SynthesizerResult<(BufferType, BufferType)> {
+        const REF_IDC: u8 = 3; // NAL ref_idc for SPS (highest priority)
+
+        let mut buffer = Vec::new();
+        Synthesizer::<Sps, _>::synthesize(
+            REF_IDC,
+            sps,
+            &mut buffer,
+            Self::ENABLE_EMULATION_PREVENTION_PACKED_HEADERS,
+        )?;
+
+        let length_in_bits = buffer.len() * 8;
+
+        let packed_sps_param = BufferType::EncPackedHeaderParameter(EncPackedHeaderParameter::new(
+            EncPackedHeaderType::Sequence,
+            length_in_bits as u32,
+            Self::ENABLE_EMULATION_PREVENTION_PACKED_HEADERS,
+        ));
+        let packed_sps_data = BufferType::EncPackedHeaderData(buffer);
+        Ok((packed_sps_param, packed_sps_data))
+    }
+
+    fn build_enc_packed_pps_param_and_data(
+        pps: &Pps,
+    ) -> SynthesizerResult<(BufferType, BufferType)> {
+        const REF_IDC: u8 = 3; // NAL ref_idc for PPS (highest priority)
+
+        let mut buffer = Vec::new();
+        Synthesizer::<Pps, _>::synthesize(
+            REF_IDC,
+            pps,
+            &mut buffer,
+            Self::ENABLE_EMULATION_PREVENTION_PACKED_HEADERS,
+        )?;
+
+        let length_in_bits = buffer.len() * 8;
+
+        let packed_pps_param = BufferType::EncPackedHeaderParameter(EncPackedHeaderParameter::new(
+            EncPackedHeaderType::Picture,
+            length_in_bits as u32,
+            Self::ENABLE_EMULATION_PREVENTION_PACKED_HEADERS,
+        ));
+        let packed_pps_data = BufferType::EncPackedHeaderData(buffer);
+        Ok((packed_pps_param, packed_pps_data))
+    }
+
+    fn build_slice_header(request: &Request<'_, H>) -> SynthesizerResult<(Vec<u8>, usize)> {
         let mut buffer = Vec::new();
 
         let num_trailing_bits = Synthesizer::<SliceHeader, _>::synthesize(
@@ -381,7 +428,7 @@ where
             request.is_idr,
             request.dpb_meta.is_reference,
             &mut buffer,
-            ep_enabled,
+            Self::ENABLE_EMULATION_PREVENTION_PACKED_HEADERS,
         )?;
 
         let length_in_bits = buffer.len() * 8 - num_trailing_bits as usize;
@@ -428,6 +475,30 @@ where
             .map(|entry| entry as Rc<dyn Any>)
             .collect();
 
+        // Packed SPS/PPS headers for IDR frames
+        let packed_sps_pps_header_buffers = if request.is_idr {
+            let supports_sps = self.supports_packed_header(libva::VA_ENC_PACKED_HEADER_SEQUENCE)?;
+            let supports_pps = self.supports_packed_header(libva::VA_ENC_PACKED_HEADER_PICTURE)?;
+
+            if supports_sps && supports_pps {
+                info!("Using packed SPS/PPS headers for IDR frame");
+                Some((
+                    Self::build_enc_packed_sps_param_and_data(&request.sps)
+                        .map_err(|e| anyhow::anyhow!("Failed to build packed SPS header: {}", e))?,
+                    Self::build_enc_packed_pps_param_and_data(&request.pps)
+                        .map_err(|e| anyhow::anyhow!("Failed to build packed PPS header: {}", e))?,
+                ))
+            } else {
+                if supports_sps != supports_pps {
+                    warn!("Hardware supports only one of packed SPS/PPS headers, not using packed headers");
+                }
+                None
+            }
+        } else {
+            None
+        };
+        let use_packed_sps_pps = packed_sps_pps_header_buffers.is_some();
+
         let packed_slice_header_buffers = if self
             .supports_packed_header(libva::VA_ENC_PACKED_HEADER_SLICE)?
         {
@@ -456,10 +527,22 @@ where
             libva::EncMiscParameterFrameRate::new(request.tunings.framerate, 0),
         ));
 
+        // Add buffers in order per VA-API spec
         picture.add_buffer(self.context().create_buffer(seq_param)?);
         picture.add_buffer(self.context().create_buffer(pic_param)?);
         picture.add_buffer(self.context().create_buffer(slice_param)?);
 
+        // Add packed SPS/PPS headers for IDR frames
+        if let Some(((packed_sps_param, packed_sps_data), (packed_pps_param, packed_pps_data))) =
+            packed_sps_pps_header_buffers
+        {
+            picture.add_buffer(self.context().create_buffer(packed_sps_param)?);
+            picture.add_buffer(self.context().create_buffer(packed_sps_data)?);
+            picture.add_buffer(self.context().create_buffer(packed_pps_param)?);
+            picture.add_buffer(self.context().create_buffer(packed_pps_data)?);
+        }
+
+        // Add packed slice header (if supported)
         if let Some((packed_slice_param, packed_slice_data)) = packed_slice_header_buffers {
             picture.add_buffer(self.context().create_buffer(packed_slice_param)?);
             picture.add_buffer(self.context().create_buffer(packed_slice_data)?);
@@ -511,8 +594,11 @@ where
         // Therefore return the reconstructed frame immediately.
         let reference_promise = ReadyPromise::from(recon);
 
+        // When using packed headers, VA-API includes them in the output, so we don't
+        // need to prepend the manually-generated headers from coded_output.
+        let coded_output = if use_packed_sps_pps { Vec::new() } else { request.coded_output };
         let bitstream_promise =
-            CodedOutputPromise::new(picture, references, coded_buf, request.coded_output);
+            CodedOutputPromise::new(picture, references, coded_buf, coded_output);
 
         Ok((reference_promise, bitstream_promise))
     }
