@@ -541,7 +541,7 @@ impl Default for SliceType {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum Profile {
     Baseline = 66,
@@ -1668,6 +1668,11 @@ impl PpsBuilder {
 
     pub fn pic_init_qp(self, value: u8) -> Self {
         self.pic_init_qp_minus26(value as i8 - 26)
+    }
+
+    pub fn entropy_coding_mode_flag(mut self, value: bool) -> Self {
+        self.0.entropy_coding_mode_flag = value;
+        self
     }
 
     pub fn deblocking_filter_control_present_flag(mut self, value: bool) -> Self {

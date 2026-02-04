@@ -113,9 +113,13 @@ impl<Picture, Reference> LowDelayH264<Picture, Reference> {
             ((min_qp + max_qp) / 2) as u8
         };
 
+        // Use CABAC for better compression (not supported in Baseline profile)
+        let use_cabac = config.profile != Profile::Baseline;
+
         let pps = PpsBuilder::new(Rc::clone(&sps))
             .pic_parameter_set_id(0)
             .pic_init_qp(init_qp)
+            .entropy_coding_mode_flag(use_cabac)
             .deblocking_filter_control_present_flag(true)
             .num_ref_idx_l0_default_active(1)
             // Unused, P frame relies only on list0
