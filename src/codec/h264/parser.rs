@@ -429,6 +429,11 @@ impl SliceHeaderBuilder {
         self
     }
 
+    pub fn frame_num(mut self, value: u16) -> Self {
+        self.0.frame_num = value;
+        self
+    }
+
     pub fn pic_order_cnt_lsb(mut self, value: u16) -> Self {
         self.0.pic_order_cnt_lsb = value;
         self

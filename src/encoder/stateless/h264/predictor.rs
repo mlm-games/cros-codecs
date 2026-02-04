@@ -155,6 +155,7 @@ impl<Picture, Reference>
         let header = SliceHeaderBuilder::new(&pps)
             .slice_type(SliceType::I)
             .first_mb_in_slice(0)
+            .frame_num(dpb_meta.frame_num as u16)
             .pic_order_cnt_lsb(dpb_meta.poc)
             .build();
 
@@ -219,6 +220,7 @@ impl<Picture, Reference>
         let header = SliceHeaderBuilder::new(&pps)
             .slice_type(SliceType::P)
             .first_mb_in_slice(0)
+            .frame_num(dpb_meta.frame_num as u16)
             .pic_order_cnt_lsb(dpb_meta.poc)
             .build();
 
