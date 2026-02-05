@@ -1675,6 +1675,11 @@ impl PpsBuilder {
         self
     }
 
+    pub fn transform_8x8_mode_flag(mut self, value: bool) -> Self {
+        self.0.transform_8x8_mode_flag = value;
+        self
+    }
+
     pub fn deblocking_filter_control_present_flag(mut self, value: bool) -> Self {
         self.0.deblocking_filter_control_present_flag = value;
         self
