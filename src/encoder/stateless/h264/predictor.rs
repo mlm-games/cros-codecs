@@ -113,9 +113,19 @@ impl<Picture, Reference> LowDelayH264<Picture, Reference> {
             ((min_qp + max_qp) / 2) as u8
         };
 
+        // Use CABAC for better compression (not supported in Baseline profile)
+        let use_cabac = config.profile != Profile::Baseline;
+        // 8x8 transform improves compression (High profile and above)
+        let use_8x8_transform = matches!(
+            config.profile,
+            Profile::High | Profile::High10 | Profile::High422P
+        );
+
         let pps = PpsBuilder::new(Rc::clone(&sps))
             .pic_parameter_set_id(0)
             .pic_init_qp(init_qp)
+            .entropy_coding_mode_flag(use_cabac)
+            .transform_8x8_mode_flag(use_8x8_transform)
             .deblocking_filter_control_present_flag(true)
             .num_ref_idx_l0_default_active(1)
             // Unused, P frame relies only on list0
@@ -155,6 +165,7 @@ impl<Picture, Reference>
         let header = SliceHeaderBuilder::new(&pps)
             .slice_type(SliceType::I)
             .first_mb_in_slice(0)
+            .frame_num(dpb_meta.frame_num as u16)
             .pic_order_cnt_lsb(dpb_meta.poc)
             .build();
 
@@ -219,6 +230,7 @@ impl<Picture, Reference>
         let header = SliceHeaderBuilder::new(&pps)
             .slice_type(SliceType::P)
             .first_mb_in_slice(0)
+            .frame_num(dpb_meta.frame_num as u16)
             .pic_order_cnt_lsb(dpb_meta.poc)
             .build();
 
