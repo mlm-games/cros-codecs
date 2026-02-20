@@ -113,7 +113,10 @@ where
 
     fn increment_counter(&mut self) {
         let old_counter = self.counter;
-        self.counter = self.counter.wrapping_add(1) % (self.limit as usize);
+        self.counter = self.counter.wrapping_add(1);
+        if self.limit > 0 {
+            self.counter %= self.limit as usize;
+        }
 
         if self.counter == 0 && old_counter != 0 {
             // Counter wrapped around naturally at the limit
