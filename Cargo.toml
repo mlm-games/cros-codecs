@@ -15,7 +15,7 @@ vaapi_dlopen = ["vaapi", "libva/dlopen"]
 v4l2 = ["v4l2r", "backend"]
 gbm = ["dep:gbm", "gbm-sys"]
 h265 = []
-av1 = []
+av1 = ["libva/vendored"]
 c2-wrapper = ["backend"]
 
 [dependencies]

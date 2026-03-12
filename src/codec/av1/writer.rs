@@ -120,6 +120,11 @@ impl<W: Write> ObuWriter<W> {
     pub fn aligned(&self) -> bool {
         !self.0.has_data_pending()
     }
+
+    /// Returns the total number of bits written so far.
+    pub fn bits_written(&self) -> usize {
+        self.0.total_bits()
+    }
 }
 
 #[cfg(test)]

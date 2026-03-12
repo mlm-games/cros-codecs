@@ -469,11 +469,17 @@ pub struct BitWriter<W: Write> {
     out: W,
     nth_bit: u8,
     curr_byte: u8,
+    total_bits: usize,
 }
 
 impl<W: Write> BitWriter<W> {
     pub fn new(writer: W) -> Self {
-        Self { out: writer, curr_byte: 0, nth_bit: 0 }
+        Self { out: writer, curr_byte: 0, nth_bit: 0, total_bits: 0 }
+    }
+
+    /// Returns the total number of bits written so far.
+    pub fn total_bits(&self) -> usize {
+        self.total_bits
     }
 
     /// Writes fixed bit size integer (up to 32 bit)
@@ -499,6 +505,7 @@ impl<W: Write> BitWriter<W> {
     pub fn write_bit(&mut self, bit: bool) -> BitWriterResult<()> {
         self.curr_byte |= (bit as u8) << (7u8 - self.nth_bit);
         self.nth_bit += 1;
+        self.total_bits += 1;
 
         if self.nth_bit == 8 {
             self.out.write_all(&[self.curr_byte])?;

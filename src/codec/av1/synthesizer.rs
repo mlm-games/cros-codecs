@@ -96,9 +96,23 @@ impl From<std::io::Error> for SynthesizerError {
 
 pub type SynthesizerResult<T> = Result<T, SynthesizerError>;
 
+/// Bit offsets of key syntax elements within a frame header OBU.
+/// These offsets are relative to the start of the frame header OBU data
+/// (after OBU header and OBU size), measured in bits.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct FrameHeaderBitOffsets {
+    pub qindex_offset: u32,
+    pub loopfilter_offset: u32,
+    pub cdef_start_offset: u32,
+    pub cdef_param_size: u32,
+    /// Total bit length of the frame header OBU data (excluding OBU header + size).
+    pub frame_hdr_data_bits: u32,
+}
+
 pub struct Synthesizer<'o, O: private::ObuStruct, W: Write> {
     writer: ObuWriter<W>,
     obu: &'o O,
+    offsets: FrameHeaderBitOffsets,
 }
 
 impl<'o, O, W> Synthesizer<'o, O, W>
@@ -107,7 +121,7 @@ where
     W: Write,
 {
     fn new(writer: W, obu: &'o O) -> Self {
-        Self { writer: ObuWriter::new(writer), obu }
+        Self { writer: ObuWriter::new(writer), obu, offsets: Default::default() }
     }
 
     fn f<T: Into<u32>>(&mut self, bits: usize, value: T) -> SynthesizerResult<()> {
@@ -170,6 +184,14 @@ where
 
     fn obu_size(&mut self, size: u32) -> SynthesizerResult<()> {
         self.leb128(size)
+    }
+
+    /// Writes the OBU size with a padded leb128 encoding (minimum byte count).
+    /// The VA-API spec requires a 4-byte obu_size field for the frame header OBU
+    /// so the driver can rewrite it during rate control.
+    fn obu_size_padded(&mut self, size: u32, min_bytes: usize) -> SynthesizerResult<()> {
+        self.writer.write_leb128(size, min_bytes)?;
+        Ok(())
     }
 
     /// Writes AV1 5.3.4. Trailing bits syntax
@@ -658,6 +680,47 @@ where
         Ok(())
     }
 
+    /// Synthesize the frame header OBU and return bit offsets of key syntax elements.
+    /// The offsets are relative to the start of the frame header OBU data (after
+    /// OBU header + OBU size), suitable for use in VAEncPictureParameterBufferAV1.
+    pub fn synthesize_with_offsets(
+        obu: &'o FrameHeaderObu,
+        sequence: &'o SequenceHeaderObu,
+        mut writer: W,
+    ) -> SynthesizerResult<FrameHeaderBitOffsets> {
+        let mut s = Synthesizer::new(&mut writer, obu);
+
+        if obu.obu_header.obu_type != ObuType::FrameHeader {
+            s.invalid_element_value("obu_type")?;
+        }
+
+        s.obu_header(&obu.obu_header)?;
+
+        if !obu.obu_header.has_size_field {
+            s.frame_header_obu(sequence)?;
+            s.trailing_bits()?;
+            let offsets = s.offsets;
+            return Ok(offsets);
+        }
+
+        let mut buf = Vec::<u8>::new();
+        let mut buffered = Synthesizer::new(&mut buf, obu);
+        buffered.frame_header_obu(sequence)?;
+        buffered.trailing_bits()?;
+        let mut offsets = buffered.offsets;
+        offsets.frame_hdr_data_bits = buffered.writer.bits_written() as u32;
+        drop(buffered);
+
+        // VA-API requires a 4-byte obu_size field for the frame header OBU
+        // so the driver can rewrite it during rate control adjustments.
+        s.obu_size_padded(buf.len() as u32, 4)?;
+        drop(s);
+
+        writer.write_all(&buf)?;
+
+        Ok(offsets)
+    }
+
     /// Writes AV1 5.9.1. General frame header OBU syntax
     fn frame_header_obu(&mut self, sequence: &'o SequenceHeaderObu) -> SynthesizerResult<()> {
         self.uncompressed_header(sequence)
@@ -1057,6 +1120,7 @@ where
             return Ok(());
         }
 
+        self.offsets.loopfilter_offset = self.writer.bits_written() as u32;
         self.f(6, self.obu.loop_filter_params.loop_filter_level[0])?;
         self.f(6, self.obu.loop_filter_params.loop_filter_level[1])?;
         if sequence.num_planes > 1
@@ -1097,6 +1161,7 @@ where
 
     /// Writes AV1 5.9.12. Quantization params syntax
     fn quantization_params(&mut self, sequence: &'o SequenceHeaderObu) -> SynthesizerResult<()> {
+        self.offsets.qindex_offset = self.writer.bits_written() as u32;
         self.f(8, self.obu.quantization_params.base_q_idx)?;
         self.read_delta_q(self.obu.quantization_params.delta_q_y_dc)?;
         if sequence.num_planes > 1 {
@@ -1314,6 +1379,7 @@ where
             return Ok(());
         }
 
+        self.offsets.cdef_start_offset = self.writer.bits_written() as u32;
         self.f(2, self.obu.cdef_params.cdef_damping - 3)?;
         self.f(2, self.obu.cdef_params.cdef_bits)?;
 
@@ -1338,6 +1404,9 @@ where
                 self.f(2, cdef_uv_sec_strength)?;
             }
         }
+
+        self.offsets.cdef_param_size =
+            self.writer.bits_written() as u32 - self.offsets.cdef_start_offset;
 
         Ok(())
     }

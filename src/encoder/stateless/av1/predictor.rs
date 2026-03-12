@@ -29,7 +29,6 @@ use crate::encoder::stateless::av1::BackendRequest;
 use crate::encoder::stateless::av1::EncoderConfig;
 use crate::encoder::stateless::predictor::LowDelay;
 use crate::encoder::stateless::predictor::LowDelayDelegate;
-use crate::encoder::EncodeError;
 use crate::encoder::EncodeResult;
 use crate::encoder::FrameMetadata;
 use crate::encoder::RateControl;
@@ -39,35 +38,80 @@ use crate::encoder::Tunings;
 pub(crate) const MIN_BASE_QINDEX: u32 = 0;
 pub(crate) const MAX_BASE_QINDEX: u32 = 255;
 
+/// AV1 encoder features queried from the driver.
+/// Used by the predictor to condition sequence/frame header parameters.
+#[derive(Debug, Clone)]
+pub(crate) struct EncoderFeaturesAV1 {
+    pub support_128x128_superblock: bool,
+    pub support_filter_intra: bool,
+    pub support_intra_edge_filter: bool,
+    pub support_interintra_compound: bool,
+    pub support_masked_compound: bool,
+    pub support_warped_motion: bool,
+    pub support_dual_filter: bool,
+    pub support_jnt_comp: bool,
+    pub support_ref_frame_mvs: bool,
+    pub support_superres: bool,
+    pub support_restoration: bool,
+    /// Bitmask of supported tx modes: bit 0 = ONLY_4X4, bit 1 = LARGEST, bit 2 = SELECT
+    pub tx_mode_support: u8,
+    #[allow(dead_code)]
+    pub max_tile_num_minus1: u16,
+}
+
+impl Default for EncoderFeaturesAV1 {
+    fn default() -> Self {
+        Self {
+            support_128x128_superblock: false,
+            support_filter_intra: false,
+            support_intra_edge_filter: false,
+            support_interintra_compound: false,
+            support_masked_compound: false,
+            support_warped_motion: false,
+            support_dual_filter: false,
+            support_jnt_comp: false,
+            support_ref_frame_mvs: false,
+            support_superres: false,
+            support_restoration: false,
+            tx_mode_support: 0x04, // Assume TX_MODE_SELECT
+            max_tile_num_minus1: 0,
+        }
+    }
+}
+
 pub(crate) struct LowDelayAV1Delegate {
     /// Current sequence header obu
     sequence: SequenceHeaderObu,
 
     /// Encoder config
     config: EncoderConfig,
+
+    /// AV1 encoder features queried from the driver.
+    features: EncoderFeaturesAV1,
 }
 
 pub(crate) type LowDelayAV1<Picture, Reference> =
     LowDelay<Picture, Reference, LowDelayAV1Delegate, BackendRequest<Picture, Reference>>;
 
 impl<Picture, Reference> LowDelayAV1<Picture, Reference> {
-    pub fn new(config: EncoderConfig, limit: u16) -> Self {
+    pub fn new(config: EncoderConfig, limit: u16, features: EncoderFeaturesAV1) -> Self {
+        let sequence = Self::create_sequence_header(&config, &features);
         Self {
             queue: Default::default(),
             references: Default::default(),
             counter: 0,
             limit,
             tunings: config.initial_tunings.clone(),
-            delegate: LowDelayAV1Delegate {
-                sequence: Self::create_sequence_header(&config),
-                config,
-            },
+            delegate: LowDelayAV1Delegate { sequence, config, features },
             tunings_queue: Default::default(),
             _phantom: Default::default(),
         }
     }
 
-    fn create_sequence_header(config: &EncoderConfig) -> SequenceHeaderObu {
+    fn create_sequence_header(
+        config: &EncoderConfig,
+        features: &EncoderFeaturesAV1,
+    ) -> SequenceHeaderObu {
         let width = config.resolution.width;
         let height = config.resolution.height;
 
@@ -97,12 +141,26 @@ impl<Picture, Reference> LowDelayAV1<Picture, Reference> {
 
             seq_force_integer_mv: SELECT_INTEGER_MV as u32,
 
+            // Gate features based on driver capabilities
+            use_128x128_superblock: features.support_128x128_superblock,
+            enable_filter_intra: features.support_filter_intra,
+            enable_intra_edge_filter: features.support_intra_edge_filter,
+            enable_interintra_compound: features.support_interintra_compound,
+            enable_masked_compound: features.support_masked_compound,
+            enable_warped_motion: features.support_warped_motion,
+            enable_dual_filter: features.support_dual_filter,
+            enable_jnt_comp: features.support_jnt_comp,
+            enable_ref_frame_mvs: features.support_ref_frame_mvs,
+            enable_superres: features.support_superres,
+            enable_cdef: true,
+            enable_restoration: features.support_restoration,
+
             operating_points: {
                 let mut ops: [OperatingPoint; MAX_NUM_OPERATING_POINTS] = Default::default();
                 ops[0].idc = 0;
-                // Use highest level 23 for now.
-                // TODO(bgrzesik): approximate level base on resolution and framerate
-                ops[0].seq_level_idx = 23;
+                // Let the driver pick the appropriate level by using 0 (2.0).
+                // The driver will override if needed based on the actual encoding parameters.
+                ops[0].seq_level_idx = 0;
                 ops
             },
 
@@ -135,6 +193,7 @@ impl<Picture, Reference> LowDelayAV1<Picture, Reference> {
     fn create_frame_header(&self, frame_type: FrameType) -> EncodeResult<FrameHeaderObu> {
         let width = self.delegate.config.resolution.width;
         let height = self.delegate.config.resolution.height;
+        let features = &self.delegate.features;
 
         // Superblock size
         let sb_size = if self.delegate.sequence.use_128x128_superblock { 128 } else { 64 };
@@ -143,16 +202,16 @@ impl<Picture, Reference> LowDelayAV1<Picture, Reference> {
         let order_hint_mask = (1 << self.delegate.sequence.order_hint_bits) - 1;
         let order_hint = (self.counter & order_hint_mask) as u32;
 
-        let RateControl::ConstantQuality(base_q_idx) = self.tunings.rate_control else {
-            return Err(EncodeError::Unsupported);
-        };
-
-        // Clamp tunings's quaility range to correct range
+        // Clamp tunings's quality range to correct range
         let min_q_idx = self.tunings.min_quality.max(MIN_BASE_QINDEX);
         let max_q_idx = self.tunings.max_quality.min(MAX_BASE_QINDEX);
 
-        // Clamp Q index
-        let base_q_idx = base_q_idx.clamp(min_q_idx, max_q_idx);
+        // For CQP mode, use the specified QP. For bitrate-controlled modes (VBR/CBR),
+        // the driver controls QP so we use a sensible default initial QP.
+        let base_q_idx = match self.tunings.rate_control {
+            RateControl::ConstantQuality(qp) => qp.clamp(min_q_idx, max_q_idx),
+            _ => (min_q_idx + max_q_idx) / 2,
+        };
 
         // Set the frame size in superblocks for the only tile
         let mut width_in_sbs_minus_1 = [0u32; MAX_TILE_COLS];
@@ -160,6 +219,17 @@ impl<Picture, Reference> LowDelayAV1<Picture, Reference> {
 
         let mut height_in_sbs_minus_1 = [0u32; MAX_TILE_ROWS];
         height_in_sbs_minus_1[0] = ((height + sb_size - 1) / sb_size) - 1;
+
+        // Select tx_mode based on driver capabilities
+        let tx_mode = if features.tx_mode_support & 0x04 != 0 {
+            TxMode::Select
+        } else if features.tx_mode_support & 0x02 != 0 {
+            TxMode::Largest
+        } else {
+            log::warn!("No preferred tx mode supported by driver, falling back to Select");
+            TxMode::Select
+        };
+        let tx_mode_select = if matches!(tx_mode, TxMode::Select) { 1 } else { 0 };
 
         Ok(FrameHeaderObu {
             obu_header: ObuHeader {
@@ -186,9 +256,9 @@ impl<Picture, Reference> LowDelayAV1<Picture, Reference> {
             order_hint,
             ref_order_hint: [0, 0, 0, 0, 0, 0, 0, 0],
 
-            reduced_tx_set: true,
-            tx_mode_select: 1,
-            tx_mode: TxMode::Select,
+            reduced_tx_set: false,
+            tx_mode_select,
+            tx_mode,
 
             // Provide the Q index from config
             quantization_params: QuantizationParams { base_q_idx, ..Default::default() },
