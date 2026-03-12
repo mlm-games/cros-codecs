@@ -386,6 +386,41 @@ where
             .map(|entry| entry as Rc<dyn Any>)
             .collect();
 
+        // Packed SPS/PPS headers for IDR frames
+        let packed_sps_pps_header_buffers = if request.is_idr {
+            let supports_sps = self.supports_packed_header(libva::VA_ENC_PACKED_HEADER_SEQUENCE);
+            let supports_pps = self.supports_packed_header(libva::VA_ENC_PACKED_HEADER_PICTURE);
+
+            if supports_sps && supports_pps {
+                info!("Using packed SPS/PPS headers for IDR frame");
+                Some((
+                    Self::build_enc_packed_sps_param_and_data(&request.sps)
+                        .map_err(|e| anyhow::anyhow!("Failed to build packed SPS header: {}", e))?,
+                    Self::build_enc_packed_pps_param_and_data(&request.pps)
+                        .map_err(|e| anyhow::anyhow!("Failed to build packed PPS header: {}", e))?,
+                ))
+            } else {
+                if supports_sps != supports_pps {
+                    warn!("Hardware supports only one of packed SPS/PPS headers, not using packed headers");
+                }
+                None
+            }
+        } else {
+            None
+        };
+        let use_packed_sps_pps = packed_sps_pps_header_buffers.is_some();
+
+        let packed_slice_header_buffers = if self
+            .supports_packed_header(libva::VA_ENC_PACKED_HEADER_SLICE)
+        {
+            Some(
+                Self::build_enc_packed_slice_param_and_data(&request)
+                    .map_err(|e| anyhow::anyhow!("Failed to build packed slice header: {}", e))?,
+            )
+        } else {
+            None
+        };
+
         // Clone picture using [`Picture::new_from_same_surface`] to avoid
         // creatig a shared cell picture between its references and processed
         // picture.
