@@ -166,8 +166,9 @@ where
     /// VA context used for encoding.
     context: Rc<Context>,
 
-    va_profile: VAProfile::Type,
-    entrypoint: VAEntrypoint::Type,
+    pub(crate) va_profile: VAProfile::Type,
+    pub(crate) entrypoint: VAEntrypoint::Type,
+    packed_headers: u32,
     scratch_pool: VaSurfacePool<()>,
     _phantom: PhantomData<(M, H)>,
 }
@@ -193,20 +194,39 @@ where
         let rt_format = format_map.rt_format;
         let entrypoint = if low_power { VAEntrypointEncSliceLP } else { VAEntrypointEncSlice };
 
-        let va_config = display.create_config(
-            vec![
-                libva::VAConfigAttrib {
-                    type_: libva::VAConfigAttribType::VAConfigAttribRTFormat,
-                    value: rt_format,
-                },
-                libva::VAConfigAttrib {
-                    type_: libva::VAConfigAttribType::VAConfigAttribRateControl,
-                    value: bitrate_control,
-                },
-            ],
-            va_profile,
-            entrypoint,
-        )?;
+        let mut config_attrs = vec![
+            libva::VAConfigAttrib {
+                type_: libva::VAConfigAttribType::VAConfigAttribRTFormat,
+                value: rt_format,
+            },
+            libva::VAConfigAttrib {
+                type_: libva::VAConfigAttribType::VAConfigAttribRateControl,
+                value: bitrate_control,
+            },
+        ];
+
+        // Query and set packed header support in the config (tells the driver which
+        // packed headers we will provide, so it knows not to generate them internally).
+        let mut packed_header_query = [libva::VAConfigAttrib {
+            type_: libva::VAConfigAttribType::VAConfigAttribEncPackedHeaders,
+            value: 0,
+        }];
+        display.get_config_attributes(va_profile, entrypoint, &mut packed_header_query)?;
+        let packed_headers = if packed_header_query[0].value != libva::VA_ATTRIB_NOT_SUPPORTED {
+            let desired = libva::VA_ENC_PACKED_HEADER_SEQUENCE
+                | libva::VA_ENC_PACKED_HEADER_PICTURE
+                | libva::VA_ENC_PACKED_HEADER_SLICE;
+            let supported = packed_header_query[0].value & desired;
+            config_attrs.push(libva::VAConfigAttrib {
+                type_: libva::VAConfigAttribType::VAConfigAttribEncPackedHeaders,
+                value: supported,
+            });
+            supported
+        } else {
+            0
+        };
+
+        let va_config = display.create_config(config_attrs, va_profile, entrypoint)?;
 
         let context = display.create_context::<M>(
             &va_config,
@@ -229,9 +249,10 @@ where
         Ok(Self {
             va_config,
             context,
-            scratch_pool,
             va_profile,
             entrypoint,
+            packed_headers,
+            scratch_pool,
             _phantom: Default::default(),
         })
     }
@@ -310,19 +331,8 @@ where
         Ok(true)
     }
 
-    pub(crate) fn supports_packed_header(&self, header: u32) -> StatelessBackendResult<bool> {
-        let display = self.context().display();
-        let mut attrs = [libva::VAConfigAttrib {
-            type_: libva::VAConfigAttribType::VAConfigAttribEncPackedHeaders,
-            value: 0,
-        }];
-
-        display.get_config_attributes(self.va_profile, self.entrypoint, &mut attrs)?;
-
-        if attrs[0].value == libva::VA_ATTRIB_NOT_SUPPORTED || (header & attrs[0].value) == 0 {
-            return Ok(false);
-        }
-        Ok(true)
+    pub(crate) fn supports_packed_header(&self, header: u32) -> bool {
+        (self.packed_headers & header) != 0
     }
 }
 

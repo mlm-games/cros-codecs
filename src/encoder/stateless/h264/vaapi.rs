@@ -477,8 +477,8 @@ where
 
         // Packed SPS/PPS headers for IDR frames
         let packed_sps_pps_header_buffers = if request.is_idr {
-            let supports_sps = self.supports_packed_header(libva::VA_ENC_PACKED_HEADER_SEQUENCE)?;
-            let supports_pps = self.supports_packed_header(libva::VA_ENC_PACKED_HEADER_PICTURE)?;
+            let supports_sps = self.supports_packed_header(libva::VA_ENC_PACKED_HEADER_SEQUENCE);
+            let supports_pps = self.supports_packed_header(libva::VA_ENC_PACKED_HEADER_PICTURE);
 
             if supports_sps && supports_pps {
                 info!("Using packed SPS/PPS headers for IDR frame");
@@ -500,7 +500,7 @@ where
         let use_packed_sps_pps = packed_sps_pps_header_buffers.is_some();
 
         let packed_slice_header_buffers = if self
-            .supports_packed_header(libva::VA_ENC_PACKED_HEADER_SLICE)?
+            .supports_packed_header(libva::VA_ENC_PACKED_HEADER_SLICE)
         {
             Some(
                 Self::build_enc_packed_slice_param_and_data(&request)
