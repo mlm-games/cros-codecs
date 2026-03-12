@@ -507,6 +507,40 @@ where
         picture.add_buffer(self.context().create_buffer(rc_param)?);
         picture.add_buffer(self.context().create_buffer(framerate_param)?);
 
+        if let Some(rc_buffer_size) = request.tunings.rc_buffer_size {
+            let hrd_buffer_size = rc_buffer_size as u32;
+            let hrd_buffer_fullness = hrd_buffer_size * 3 / 4;
+
+            let hrd_param = BufferType::EncMiscParameter(libva::EncMiscParameter::HRD(
+                libva::EncMiscParameterHRD::new(hrd_buffer_fullness, hrd_buffer_size),
+            ));
+            picture.add_buffer(self.context().create_buffer(hrd_param)?);
+        }
+
+        if let Some(max_frame_size) = request.tunings.max_frame_size {
+            if self.supports_max_frame_size()? {
+                let max_frame_size_param =
+                    BufferType::EncMiscParameter(libva::EncMiscParameter::MaxFrameSize(
+                        libva::EncMiscParameterBufferMaxFrameSize::new(max_frame_size as u32),
+                    ));
+                picture.add_buffer(self.context().create_buffer(max_frame_size_param)?);
+            } else {
+                warn!("Max frame size not supported");
+            }
+        }
+
+        if let Some(quality) = request.tunings.quality {
+            if self.supports_quality_range(quality)? {
+                let quality_param =
+                    BufferType::EncMiscParameter(libva::EncMiscParameter::QualityLevel(
+                        libva::EncMiscParameterBufferQualityLevel::new(quality),
+                    ));
+                picture.add_buffer(self.context().create_buffer(quality_param)?);
+            } else {
+                warn!("Quality level not supported");
+            }
+        }
+
         // Start processing the picture encoding
         let picture = picture.begin().context("picture begin")?;
         let picture = picture.render().context("picture render")?;
