@@ -1171,7 +1171,7 @@ impl SpsBuilder {
     }
 
     pub fn max_frame_num(self, value: u32) -> Self {
-        self.log2_max_frame_num_minus4(value.ilog2() as u8 - 4u8)
+        self.log2_max_frame_num_minus4(value.next_power_of_two().ilog2().saturating_sub(4) as u8)
     }
 
     pub fn pic_order_cnt_type(mut self, value: u8) -> Self {
@@ -1185,7 +1185,9 @@ impl SpsBuilder {
     }
 
     pub fn max_pic_order_cnt_lsb(self, value: u32) -> Self {
-        self.log2_max_pic_order_cnt_lsb_minus4(value.ilog2() as u8 - 4u8)
+        self.log2_max_pic_order_cnt_lsb_minus4(
+            value.next_power_of_two().ilog2().saturating_sub(4) as u8
+        )
     }
 
     pub fn delta_pic_order_always_zero_flag(mut self, value: bool) -> Self {
