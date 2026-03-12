@@ -10,7 +10,7 @@ use crate::codec::av1::parser::SequenceHeaderObu;
 use crate::codec::av1::parser::REFS_PER_FRAME;
 use crate::encoder::av1::EncoderConfig;
 use crate::encoder::av1::AV1;
-use crate::encoder::stateless::av1::predictor::LowDelayAV1;
+use crate::encoder::stateless::av1::predictor::{EncoderFeaturesAV1, LowDelayAV1};
 use crate::encoder::stateless::BitstreamPromise;
 use crate::encoder::stateless::Predictor;
 use crate::encoder::stateless::StatelessBackendResult;
@@ -123,9 +123,16 @@ impl<Handle, Backend> StatelessEncoder<Handle, Backend>
 where
     Backend: StatelessAV1EncoderBackend,
 {
-    fn new_av1(backend: Backend, config: EncoderConfig, mode: BlockingMode) -> EncodeResult<Self> {
+    fn new_av1(
+        backend: Backend,
+        config: EncoderConfig,
+        mode: BlockingMode,
+        av1_features: EncoderFeaturesAV1,
+    ) -> EncodeResult<Self> {
         let predictor: Box<dyn Predictor<_, _, _>> = match config.pred_structure {
-            PredictionStructure::LowDelay { limit } => Box::new(LowDelayAV1::new(config, limit)),
+            PredictionStructure::LowDelay { limit } => {
+                Box::new(LowDelayAV1::new(config, limit, av1_features))
+            }
         };
 
         Self::new(backend, mode, predictor)
