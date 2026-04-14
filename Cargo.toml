@@ -11,12 +11,15 @@ edition = "2021"
 default = []
 backend = ["anyhow", "byteorder", "thiserror", "crc32fast", "nix", "drm", "drm-fourcc", "zerocopy"]
 vaapi = ["libva", "backend"]
-vaapi_dlopen = ["vaapi", "libva/dlopen"]
+vaapi_dlopen = ["vaapi", "libva/vendored"]
 v4l2 = ["v4l2r", "backend"]
 gbm = ["dep:gbm", "gbm-sys"]
 h265 = []
-av1 = ["libva/vendored"]
+av1 = []
 c2-wrapper = ["backend"]
+
+[patch.crates-io]
+cros-libva = { git = "https://github.com/discord/cros-libva.git", branch = "discord-0.0.13" }
 
 [dependencies]
 anyhow = { version = "1.0.75", optional = true }
