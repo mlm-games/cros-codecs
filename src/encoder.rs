@@ -42,6 +42,13 @@ impl RateControl {
             RateControl::ConstantQuality(_) => None,
         }
     }
+
+    pub(crate) fn bitrate_maximum(&self) -> Option<u64> {
+        match self {
+            RateControl::ConstantBitrate(target) => Some(*target),
+            RateControl::ConstantQuality(_) => None,
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -64,6 +71,12 @@ pub struct Tunings {
     pub min_quality: u32,
     /// Maximum value of codec specific quality parameter constant (eg. QP for H.264)
     pub max_quality: u32,
+    /// Maximum frame size in bytes (optional)
+    pub max_frame_size: Option<u32>,
+    /// HRD buffer size in bits (optional)
+    pub rc_buffer_size: Option<u32>,
+    /// Target quality level (optional, for quality-based encoding)
+    pub quality: Option<u32>,
 }
 
 impl Default for Tunings {
@@ -73,6 +86,9 @@ impl Default for Tunings {
             framerate: 30,
             min_quality: 0,
             max_quality: u32::MAX,
+            max_frame_size: None,
+            rc_buffer_size: None,
+            quality: None,
         }
     }
 }

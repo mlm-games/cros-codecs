@@ -199,9 +199,7 @@ dependencies = [
 
 [[package]]
 name = "cros-libva"
-version = "0.0.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "902c9726e953b678595456bd38f95f31aaf1947c56dd9f4a2290f3f1eca4d228"
+version = "0.0.13"
 dependencies = [
  "bindgen 0.70.1",
  "bitflags",

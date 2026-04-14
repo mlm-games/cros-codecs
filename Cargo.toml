@@ -29,7 +29,7 @@ av1 = ["libva/vendored"]
 c2-wrapper = ["backend"]
 
 [patch.crates-io]
-cros-libva = { git = "https://github.com/discord/cros-libva.git", rev = "896a248e003caae7a7120812f7eaa423c93a920d" }
+cros-libva = { path = "../cros-libva/lib" }
 
 [dependencies]
 anyhow = { version = "1.0.75", optional = true }

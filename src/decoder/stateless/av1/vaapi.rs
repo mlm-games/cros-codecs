@@ -560,7 +560,7 @@ impl<V: VideoFrame> StatelessAV1DecoderBackend for VaapiBackend<V> {
 impl<V: VideoFrame> StatelessDecoder<Av1, VaapiBackend<V>> {
     // Creates a new instance of the decoder using the VAAPI backend.
     pub fn new_vaapi(
-        display: Arc<Display>,
+        display: Rc<Display>,
         blocking_mode: BlockingMode,
     ) -> Result<Self, NewStatelessDecoderError> {
         Self::new(VaapiBackend::new(display, true), blocking_mode)

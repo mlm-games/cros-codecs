@@ -17,6 +17,7 @@ use libva::PictureEnd;
 use libva::Surface;
 use libva::SurfaceMemoryDescriptor;
 use libva::UsageHint;
+use libva::VAEntrypoint;
 use libva::VAEntrypoint::VAEntrypointEncSlice;
 use libva::VAEntrypoint::VAEntrypointEncSliceLP;
 use libva::VAProfile;

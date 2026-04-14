@@ -10,6 +10,8 @@ use anyhow::Context;
 use libva::BufferType;
 use libva::Display;
 use libva::EncCodedBuffer;
+use libva::EncPackedHeaderParameter;
+use libva::EncPackedHeaderType;
 use libva::EncPictureParameter;
 use libva::EncPictureParameterBufferH264;
 use libva::EncSequenceParameter;
@@ -28,6 +30,8 @@ use libva::VAProfile;
 use libva::VA_INVALID_ID;
 use libva::VA_PICTURE_H264_LONG_TERM_REFERENCE;
 use libva::VA_PICTURE_H264_SHORT_TERM_REFERENCE;
+use log::info;
+use log::warn;
 
 use crate::backend::vaapi::encoder::tunings_to_libva_rc;
 use crate::backend::vaapi::encoder::CodedOutputPromise;
@@ -37,6 +41,9 @@ use crate::codec::h264::parser::Pps;
 use crate::codec::h264::parser::Profile;
 use crate::codec::h264::parser::SliceHeader;
 use crate::codec::h264::parser::Sps;
+use crate::codec::h264::synthesizer::Synthesizer;
+use crate::codec::h264::synthesizer::SynthesizerError;
+use crate::codec::h264::synthesizer::SynthesizerResult;
 use crate::encoder::h264::EncoderConfig;
 use crate::encoder::h264::H264;
 use crate::encoder::stateless::h264::predictor::MAX_QP;
@@ -344,6 +351,62 @@ where
             header.slice_alpha_c0_offset_div2,
             header.slice_beta_offset_div2,
         )))
+    }
+
+    const ENABLE_EMULATION_PREVENTION_PACKED_HEADERS: bool = false;
+
+    fn build_enc_packed_slice_param_and_data(
+        _request: &Request<'_, H>,
+    ) -> SynthesizerResult<(BufferType, BufferType)> {
+        Err(SynthesizerError::Unsupported)
+    }
+
+    fn build_enc_packed_sps_param_and_data(
+        sps: &Sps,
+    ) -> SynthesizerResult<(BufferType, BufferType)> {
+        const REF_IDC: u8 = 3;
+
+        let mut buffer = Vec::new();
+        Synthesizer::<Sps, _>::synthesize(
+            REF_IDC,
+            sps,
+            &mut buffer,
+            Self::ENABLE_EMULATION_PREVENTION_PACKED_HEADERS,
+        )?;
+
+        let length_in_bits = buffer.len() * 8;
+
+        let packed_sps_param = BufferType::EncPackedHeaderParameter(EncPackedHeaderParameter::new(
+            EncPackedHeaderType::Sequence,
+            length_in_bits as u32,
+            Self::ENABLE_EMULATION_PREVENTION_PACKED_HEADERS,
+        ));
+        let packed_sps_data = BufferType::EncPackedHeaderData(buffer);
+        Ok((packed_sps_param, packed_sps_data))
+    }
+
+    fn build_enc_packed_pps_param_and_data(
+        pps: &Pps,
+    ) -> SynthesizerResult<(BufferType, BufferType)> {
+        const REF_IDC: u8 = 3;
+
+        let mut buffer = Vec::new();
+        Synthesizer::<Pps, _>::synthesize(
+            REF_IDC,
+            pps,
+            &mut buffer,
+            Self::ENABLE_EMULATION_PREVENTION_PACKED_HEADERS,
+        )?;
+
+        let length_in_bits = buffer.len() * 8;
+
+        let packed_pps_param = BufferType::EncPackedHeaderParameter(EncPackedHeaderParameter::new(
+            EncPackedHeaderType::Picture,
+            length_in_bits as u32,
+            Self::ENABLE_EMULATION_PREVENTION_PACKED_HEADERS,
+        ));
+        let packed_pps_data = BufferType::EncPackedHeaderData(buffer);
+        Ok((packed_pps_param, packed_pps_data))
     }
 }
 

@@ -4,7 +4,6 @@
 
 use std::num::TryFromIntError;
 use std::rc::Rc;
-use std::sync::Arc;
 
 use libva::AV1EncLoopFilterFlags;
 use libva::AV1EncLoopRestorationFlags;
@@ -831,7 +830,7 @@ where
 /// Create the VAAPI backend and query AV1 encoder features from the driver.
 /// Shared setup logic for both `new_vaapi` and `new_native_vaapi`.
 fn create_av1_vaapi_backend<D, S>(
-    display: Arc<libva::Display>,
+    display: Rc<libva::Display>,
     config: &EncoderConfig,
     fourcc: Fourcc,
     coded_size: Resolution,
@@ -849,7 +848,6 @@ where
 
     let bitrate_control = match config.initial_tunings.rate_control {
         RateControl::ConstantBitrate(_) => libva::VA_RC_CBR,
-        RateControl::VariableBitrate { .. } => libva::VA_RC_VBR,
         RateControl::ConstantQuality(_) => libva::VA_RC_CQP,
     };
 
@@ -865,7 +863,7 @@ impl<V: VideoFrame>
     StatelessEncoder<AV1, V, VaapiBackend<V::MemDescriptor, Surface<V::MemDescriptor>>>
 {
     pub fn new_vaapi(
-        display: Arc<libva::Display>,
+        display: Rc<libva::Display>,
         config: EncoderConfig,
         fourcc: Fourcc,
         coded_size: Resolution,
@@ -882,7 +880,7 @@ impl<D: SurfaceMemoryDescriptor, S: std::borrow::Borrow<Surface<D>> + 'static>
     StatelessEncoder<AV1, S, VaapiBackend<D, S>>
 {
     pub fn new_native_vaapi(
-        display: Arc<libva::Display>,
+        display: Rc<libva::Display>,
         config: EncoderConfig,
         fourcc: Fourcc,
         coded_size: Resolution,
