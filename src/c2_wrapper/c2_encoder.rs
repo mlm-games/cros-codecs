@@ -28,6 +28,7 @@ use crate::encoder::FrameMetadata;
 use crate::encoder::RateControl;
 use crate::encoder::RateControl::ConstantBitrate;
 use crate::encoder::RateControl::ConstantQuality;
+use crate::encoder::RateControl::VariableBitrate;
 use crate::encoder::Tunings;
 use crate::encoder::VideoEncoder;
 use crate::image_processing::convert_video_frame;
@@ -227,10 +228,12 @@ where
 
                 let curr_bitrate = match self.current_tunings.rate_control {
                     ConstantBitrate(bitrate) => bitrate,
-                    ConstantQuality(_) => {
-                        log::debug!("CQ encoding not currently supported");
-                        *self.state.lock().unwrap() = C2State::C2Error;
-                        (*self.error_cb.lock().unwrap())(C2Status::C2BadValue);
+                    ConstantQuality(_) | VariableBitrate { .. } => {
+                        log::debug!("CQ/VBR encoding not currently supported in C2 mode");
+                        *self.state.lock().expect("C2 state mutex poisoned") = C2State::C2Error;
+                        (*self.error_cb.lock().expect("C2 error_cb mutex poisoned"))(
+                            C2Status::C2BadValue,
+                        );
                         break;
                     }
                 };

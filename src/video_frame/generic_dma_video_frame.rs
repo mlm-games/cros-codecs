@@ -299,7 +299,11 @@ impl<'a> Drop for DmaMapping<'a> {
             let sync_struct =
                 dma_buf_sync { flags: DMA_BUF_SYNC_END | DMA_BUF_SYNC_READ | DMA_BUF_SYNC_WRITE };
             for fd in self.dma_handles.iter() {
-                let _ = handle_eintr(&mut || dma_buf_ioctl_sync(fd.as_raw_fd(), &sync_struct));
+                if let Err(e) =
+                    handle_eintr(&mut || dma_buf_ioctl_sync(fd.as_raw_fd(), &sync_struct))
+                {
+                    log::warn!("DMA buffer sync failed during drop: {:#}", e);
+                }
             }
 
             // For some reason, DMA_BUF_IOCTL_SYNC is insufficient on Intel machines, and we have
@@ -324,7 +328,11 @@ impl<'a> Drop for DmaMapping<'a> {
 
             fence(Ordering::SeqCst);
 
-            let _ = zip(self.addrs.iter(), self.lens.iter()).map(|x| munmap(*x.0, *x.1).unwrap());
+            for (addr, len) in zip(self.addrs.iter(), self.lens.iter()) {
+                if let Err(e) = munmap(*addr, *len) {
+                    log::warn!("munmap failed during drop: {:#}", e);
+                }
+            }
         }
     }
 }

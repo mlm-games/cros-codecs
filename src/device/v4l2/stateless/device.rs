@@ -19,6 +19,7 @@ use v4l2r::nix::sys::stat::Mode;
 
 use crate::decoder::stateless::DecodeError;
 use crate::decoder::stateless::NewStatelessDecoderError;
+use crate::decoder::stateless::StatelessBackendError;
 use crate::device::v4l2::stateless::queue::QueueError;
 use crate::device::v4l2::stateless::queue::V4l2CaptureBuffer;
 use crate::device::v4l2::stateless::queue::V4l2CaptureQueue;
@@ -78,40 +79,44 @@ impl<V: VideoFrame> DeviceHandle<V> {
             .map_err(|_| QueueError::ResetCaptureQueue)
     }
 
-    fn alloc_request(&self) -> ioctl::Request {
-        ioctl::Request::alloc(&self.media_device).expect("Failed to alloc request handle")
+    fn alloc_request(&self) -> Result<ioctl::Request, QueueError> {
+        ioctl::Request::alloc(&self.media_device).map_err(|_| QueueError::RequestAlloc)
     }
-    fn dequeue_output_buffer(&self) {
+    fn dequeue_output_buffer(&self) -> Result<(), QueueError> {
         let mut back_off_duration = Duration::from_millis(1);
+        let time_out = Duration::from_millis(120);
         loop {
             match self.output_queue.dequeue_buffer() {
-                Ok(_) => {
-                    break;
-                }
+                Ok(_) => return Ok(()),
                 Err(QueueError::BufferDequeue) => {
                     sleep(back_off_duration);
                     back_off_duration = back_off_duration + back_off_duration;
+                    if back_off_duration > time_out {
+                        return Err(QueueError::BufferDequeue);
+                    }
                     continue;
                 }
-                Err(_) => panic!("handle this better"),
+                Err(e) => return Err(e),
             }
         }
     }
     fn insert_request_into_hash(&mut self, request: Weak<RefCell<V4l2Request<V>>>) {
-        let timestamp = request.upgrade().unwrap().as_ref().borrow().timestamp();
-        self.requests.insert(timestamp, request);
+        if let Some(rc) = request.upgrade() {
+            let timestamp = rc.as_ref().borrow().timestamp();
+            self.requests.insert(timestamp, request);
+        }
     }
     fn try_dequeue_capture_buffers(&mut self) {
         loop {
             match self.capture_queue.dequeue_buffer() {
                 Ok(Some(buffer)) => {
                     let timestamp = buffer.timestamp();
-                    let request = self.requests.remove(&timestamp).unwrap();
-                    match request.upgrade().unwrap().as_ref().try_borrow_mut() {
-                        Ok(mut request) => {
-                            request.associate_dequeued_buffer(buffer);
+                    if let Some(request) = self.requests.remove(&timestamp) {
+                        if let Some(rc) = request.upgrade() {
+                            if let Ok(mut request) = rc.as_ref().try_borrow_mut() {
+                                request.associate_dequeued_buffer(buffer);
+                            }
                         }
-                        _ => (),
                     }
                     continue;
                 }
@@ -119,22 +124,21 @@ impl<V: VideoFrame> DeviceHandle<V> {
             }
         }
     }
-    fn sync(&mut self, timestamp: u64) -> V4l2CaptureBuffer<V> {
+    fn sync(&mut self, timestamp: u64) -> Result<V4l2CaptureBuffer<V>, QueueError> {
         let mut back_off_duration = Duration::from_millis(1);
         let time_out = Duration::from_millis(120);
         loop {
             match self.capture_queue.dequeue_buffer() {
                 Ok(Some(buffer)) => {
                     let dequeued_timestamp = buffer.timestamp();
-                    let request = self.requests.remove(&dequeued_timestamp).unwrap();
+                    let request = self.requests.remove(&dequeued_timestamp);
                     if dequeued_timestamp == timestamp {
-                        return buffer;
+                        return Ok(buffer);
                     } else {
-                        match request.upgrade().unwrap().as_ref().try_borrow_mut() {
-                            Ok(mut request) => {
+                        if let Some(Some(rc)) = request.map(|w| w.upgrade()) {
+                            if let Ok(mut request) = rc.as_ref().try_borrow_mut() {
                                 request.associate_dequeued_buffer(buffer);
                             }
-                            _ => (),
                         }
                     }
                 }
@@ -142,7 +146,7 @@ impl<V: VideoFrame> DeviceHandle<V> {
             }
             back_off_duration = back_off_duration + back_off_duration;
             if back_off_duration > time_out {
-                panic!("there should not be a scenario where a queued frame is not returned.");
+                return Err(QueueError::BufferDequeue);
             }
             sleep(back_off_duration);
         }
@@ -186,7 +190,11 @@ impl<V: VideoFrame> V4l2Device<V> {
         let output_buffer = match output_buffer {
             Ok(buffer) => buffer,
             Err(DecodeError::NotEnoughOutputBuffers(_)) => {
-                self.handle.borrow_mut().dequeue_output_buffer();
+                if let Err(e) = self.handle.borrow_mut().dequeue_output_buffer() {
+                    return Err(DecodeError::BackendError(StatelessBackendError::Other(
+                        anyhow::anyhow!(e),
+                    )));
+                }
                 match self.handle.borrow().output_queue.alloc_buffer() {
                     Ok(buffer) => buffer,
                     Err(e) => return Err(e),
@@ -196,17 +204,24 @@ impl<V: VideoFrame> V4l2Device<V> {
         };
         self.handle.borrow_mut().try_dequeue_capture_buffers();
 
-        let request = Rc::new(RefCell::new(V4l2Request::new(
-            self.clone(),
-            timestamp,
-            self.handle.borrow().alloc_request(),
-            output_buffer,
-            frame,
-        )));
+        let request = match self.handle.borrow().alloc_request() {
+            Ok(req) => Rc::new(RefCell::new(V4l2Request::new(
+                self.clone(),
+                timestamp,
+                req,
+                output_buffer,
+                frame,
+            ))),
+            Err(e) => {
+                return Err(DecodeError::BackendError(StatelessBackendError::Other(
+                    anyhow::anyhow!(e),
+                )))
+            }
+        };
         self.handle.borrow_mut().insert_request_into_hash(Rc::downgrade(&request.clone()));
         Ok(request)
     }
-    pub fn sync(&self, timestamp: u64) -> V4l2CaptureBuffer<V> {
+    pub fn sync(&self, timestamp: u64) -> Result<V4l2CaptureBuffer<V>, QueueError> {
         self.handle.borrow_mut().sync(timestamp)
     }
     pub fn queue_capture_buffer(&self, frame: V) -> Result<(), QueueError> {

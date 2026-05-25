@@ -33,7 +33,7 @@ impl<'a> ReadMapping<'a> for V4l2MmapMapping {
 
 impl<'a> WriteMapping<'a> for V4l2MmapMapping {
     fn get(&self) -> Vec<RefCell<&'a mut [u8]>> {
-        todo!("Writable mappings not yet supported!")
+        panic!("Writable mappings are not supported for V4L2 MMAP backed frames");
     }
 }
 
@@ -59,20 +59,18 @@ impl Debug for V4l2MmapVideoFrame {
 
 impl V4l2MmapVideoFrame {
     pub fn new(fourcc: Fourcc, resolution: Resolution) -> Self {
-        let ret = V4l2MmapVideoFrame {
-            fourcc: fourcc,
-            resolution: resolution,
+        if Fourcc::from(b"MM21") == fourcc || Fourcc::from(b"NM12") == fourcc {
+            panic!("Contiguous formats are not currently supported for V4L2 MMAP!");
+        }
+
+        V4l2MmapVideoFrame {
+            fourcc,
+            resolution,
             handle: MmapHandle {},
             device: None,
             queue_format: None,
             buffer: None,
-        };
-
-        if ret.is_contiguous() {
-            todo!("Contiguous formats are not currently supported for MMAP!");
         }
-
-        ret
     }
 
     fn map_helper(&self) -> Result<V4l2MmapMapping, String> {
