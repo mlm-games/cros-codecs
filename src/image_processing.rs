@@ -159,8 +159,13 @@ pub fn y410_to_i410(
 }
 
 #[cfg(feature = "v4l2")]
-// SAFETY: Verified by caller that |src| and |dst| is valid and not
-// a NULL-pointer or invalid memory.
+/// # Safety
+///
+/// Caller must ensure:
+/// - `src` points to a valid buffer of at least `src_tile_stride * (tile_height)` bytes.
+/// - `dst` points to a valid buffer of at least `width` bytes.
+/// - `src` and `dst` do not overlap.
+/// - Both pointers are aligned to 1-byte boundaries.
 pub unsafe fn align_detile(src: *const u8, src_tile_stride: isize, dst: *mut u8, width: usize) {
     let mut vin = [0u8; MM21_TILE_WIDTH];
     let mut vout = [0u8; MM21_TILE_WIDTH];
@@ -191,8 +196,13 @@ pub unsafe fn align_detile(src: *const u8, src_tile_stride: isize, dst: *mut u8,
 }
 
 #[cfg(feature = "v4l2")]
-// SAFETY: Verified by caller that |src| and |dst| is valid and not
-// a NULL-pointer or invalid memory.
+/// # Safety
+///
+/// Caller must ensure:
+/// - `src` points to a valid buffer of at least `src_tile_stride * width / MM21_TILE_WIDTH` bytes.
+/// - `dst` points to a valid buffer of at least `width` bytes.
+/// - `src` and `dst` do not overlap.
+/// - Both pointers are valid for reads/writes for the specified ranges.
 pub unsafe fn detile_row(
     mut src: *const u8,
     src_tile_stride: isize,
@@ -261,7 +271,9 @@ pub fn detile_plane(
     // Image inversion
     if height < 0 {
         height = -height;
-        // SAFETY: Verified the validity of src buffer and height.
+        // SAFETY: `src_ptr` is derived from `src.as_ptr()` which is valid for `src.len()`
+        // bytes. `(height - 1) * dst_stride` is within bounds because `src.len()` >=
+        // `src_stride * height` was checked above.
         unsafe {
             src_ptr = src_ptr.offset(((height - 1) * dst_stride) as isize);
         }
@@ -270,7 +282,10 @@ pub fn detile_plane(
 
     // Detile Plane
     for y in 0..height {
-        // SAFETY: Verified validity of src and dst pointers.
+        // SAFETY: Both `src_ptr` and `dst_ptr` point to valid memory for the computed
+        // ranges. `src_ptr` is within `src` buffer bounds (validated above), and `dst_ptr`
+        // is within `dst` buffer bounds (validated above). `detile_row` reads `width` bytes
+        // from `src_ptr` with stride `src_tile_stride` and writes `width` bytes to `dst_ptr`.
         unsafe {
             if aligned {
                 detile_row(src_ptr, src_tile_stride, dst_ptr, width);
@@ -279,14 +294,17 @@ pub fn detile_plane(
             }
         }
 
-        // SAFETY: Verified the validity of the src and dst buffers.
+        // SAFETY: The offsets are within the bounds of the validated src and dst buffers.
+        // `dst_stride` is a pixel-space offset (may be negative for flipped images).
+        // `MM21_TILE_WIDTH` advances src by one tile-width per row within a tile-group.
         unsafe {
             dst_ptr = dst_ptr.offset(dst_stride as isize);
             src_ptr = src_ptr.offset(MM21_TILE_WIDTH as isize);
         }
         // Advance to next row of tiles.
         if (y & (tile_height - 1) as isize) == ((tile_height - 1) as isize) {
-            // SAFETY: Verified validity of the src buffers.
+            // SAFETY: `(-src_tile_stride + src_stride * tile_height)` moves src_ptr to the
+            // start of the next tile row. The buffers were validated for this access range.
             unsafe {
                 src_ptr = src_ptr.offset(-src_tile_stride + (src_stride * tile_height) as isize);
             }

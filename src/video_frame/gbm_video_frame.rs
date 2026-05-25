@@ -11,8 +11,6 @@ use std::os::fd::BorrowedFd;
 use std::os::fd::FromRawFd;
 use std::path::Path;
 use std::ptr;
-#[cfg(feature = "vaapi")]
-use std::rc::Rc;
 use std::slice;
 use std::sync::Arc;
 
@@ -334,7 +332,7 @@ impl VideoFrame for GbmVideoFrame {
     #[cfg(feature = "vaapi")]
     type MemDescriptor = GbmExternalBufferDescriptor;
     #[cfg(feature = "vaapi")]
-    type NativeHandle = Surface<GbmExternalBufferDescriptor>;
+    type VaapiHandle = Surface<GbmExternalBufferDescriptor>;
 
     fn fourcc(&self) -> Fourcc {
         self.fourcc.clone()
@@ -394,7 +392,7 @@ impl VideoFrame for GbmVideoFrame {
     fn process_dqbuf(&mut self, _device: Arc<Device>, _format: &Format, _buf: &V4l2Buffer) {}
 
     #[cfg(feature = "vaapi")]
-    fn to_native_handle(&self, display: &Rc<Display>) -> Result<Self::NativeHandle, String> {
+    fn to_native_handle(&self, display: &Arc<Display>) -> Result<Self::VaapiHandle, String> {
         if self.is_compressed() {
             return Err("Compressed buffer export to VA-API is not currently supported".to_string());
         }
@@ -712,6 +710,8 @@ impl GbmDevice {
             fourcc: Fourcc::from(descriptor.fourcc),
             resolution: Resolution { width: descriptor.width, height: descriptor.height },
             bo: vec![],
+            #[cfg(feature = "v4l2")]
+            export_handles: vec![],
         };
 
         let buffers = [

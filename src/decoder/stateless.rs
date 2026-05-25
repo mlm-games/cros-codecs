@@ -387,7 +387,9 @@ where
     /// `FormatChanged` event is processed.
     fn await_format_change(&mut self, format_info: C::FormatInfo) {
         self.decoding_state = DecodingState::AwaitingFormat(format_info);
-        self.awaiting_format_event.write(1).unwrap();
+        if let Err(e) = self.awaiting_format_event.write(1) {
+            log::error!("failed to signal format change event: {:#}", e);
+        }
     }
 
     // If the decoder is in a flushing state, the decoder will wait until the ready_queue is

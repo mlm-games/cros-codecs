@@ -50,7 +50,7 @@ impl C2EncoderBackend for C2V4L2Encoder {
         Ok(Self { visible_resolution: options.visible_resolution, device: Arc::new(device) })
     }
 
-    fn get_encoder<V: VideoFrame>(
+    fn get_encoder_v4l2<V: VideoFrame>(
         &mut self,
         input_format: DecodedFormat,
         output_format: EncodedFormat,

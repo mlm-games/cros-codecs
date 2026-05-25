@@ -81,7 +81,7 @@ impl<'a> BitReader<'a> {
             num_remaining_bits_in_curr_byte: Default::default(),
             prev_two_bytes: 0xffff,
             num_epb: Default::default(),
-            needs_epb: needs_epb,
+            needs_epb,
             position: 0,
         }
     }
@@ -137,11 +137,11 @@ impl<'a> BitReader<'a> {
 
     /// Reads an unsigned integer from the stream and checks if the stream is byte aligned.
     pub fn read_bits_aligned<U: TryFrom<u32>>(&mut self, num_bits: usize) -> Result<U, String> {
-        if self.num_remaining_bits_in_curr_byte % 8 != 0 {
+        if !self.num_remaining_bits_in_curr_byte.is_multiple_of(8) {
             return Err("Attempted unaligned read_le()".into());
         }
 
-        Ok(self.read_bits(num_bits).map_err(|err| err.to_string())?)
+        self.read_bits(num_bits).map_err(|err| err.to_string())
     }
 
     /// Skip `num_bits` bits from the stream.
@@ -185,7 +185,7 @@ impl<'a> BitReader<'a> {
 
         let mut buf = [0u8; 1];
         let orig_pos = self.data.position();
-        while let Ok(_) = self.data.read_exact(&mut buf) {
+        while self.data.read_exact(&mut buf).is_ok() {
             if buf[0] != 0 {
                 self.data.set_position(orig_pos);
                 return true;
@@ -252,14 +252,14 @@ impl<'a> BitReader<'a> {
 
     /// Read little endian multi-byte integer.
     pub fn read_le<U: TryFrom<u32>>(&mut self, num_bits: u8) -> Result<U, String> {
-        let mut t = 0;
+        let mut t = 0u32;
 
         for i in 0..num_bits {
             let byte = self.read_bits_aligned::<u32>(8)?;
-            t += byte << (i * 8)
+            t = t.wrapping_add(byte << (i * 8));
         }
 
-        Ok(U::try_from(t).map_err(|_| String::from("Conversion error"))?)
+        U::try_from(t).map_err(|_| String::from("Conversion error"))
     }
 
     /// Return the position of this bitstream in bits.

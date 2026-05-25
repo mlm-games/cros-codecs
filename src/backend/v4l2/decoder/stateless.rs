@@ -6,8 +6,6 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use anyhow::anyhow;
-
 use crate::backend::v4l2::decoder::V4l2StreamInfo;
 use crate::decoder::stateless::NewStatelessDecoderError;
 use crate::decoder::stateless::StatelessBackendResult;

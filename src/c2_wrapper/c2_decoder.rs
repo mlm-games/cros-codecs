@@ -62,18 +62,16 @@ pub trait C2DecoderBackend {
     ) -> Result<DynStatelessVideoDecoder<V>, String>;
 }
 
-#[cfg(feature = "gbm")]
-type AuxiliaryVideoFrame = GbmVideoFrame;
-#[cfg(feature = "v4l2")]
-type AuxiliaryVideoFrame = V4l2MmapVideoFrame;
-
 // An "importing decoder" can directly import the DMA bufs we are getting, while a "converting
 // decoder" is used for performing image processing routines to convert between the video hardware
 // output and a pixel format that can be consumed by the GPU and display controller.
 // TODO: Come up with a better name for these?
 enum C2Decoder<V: VideoFrame> {
     ImportingDecoder(DynStatelessVideoDecoder<V>),
-    ConvertingDecoder(DynStatelessVideoDecoder<PooledVideoFrame<AuxiliaryVideoFrame>>),
+    #[cfg(feature = "gbm")]
+    ConvertingDecoderGbm(DynStatelessVideoDecoder<PooledVideoFrame<GbmVideoFrame>>),
+    #[cfg(feature = "v4l2")]
+    ConvertingDecoderV4l2(DynStatelessVideoDecoder<PooledVideoFrame<V4l2MmapVideoFrame>>),
 }
 
 pub struct C2DecoderWorker<V, B>
@@ -84,7 +82,10 @@ where
     decoder: C2Decoder<V>,
     epoll_fd: Epoll,
     awaiting_job_event: Arc<EventFd>,
-    auxiliary_frame_pool: Option<FramePool<AuxiliaryVideoFrame>>,
+    #[cfg(feature = "gbm")]
+    auxiliary_frame_pool_gbm: Option<FramePool<GbmVideoFrame>>,
+    #[cfg(feature = "v4l2")]
+    auxiliary_frame_pool_v4l2: Option<FramePool<V4l2MmapVideoFrame>>,
     error_cb: Arc<Mutex<dyn FnMut(C2Status) + Send + 'static>>,
     work_done_cb: Arc<Mutex<dyn FnMut(C2DecodeJob<V>) + Send + 'static>>,
     framepool_hint_cb: Arc<Mutex<dyn FnMut(StreamInfo) + Send + 'static>>,
@@ -100,12 +101,75 @@ where
     V: VideoFrame,
     B: C2DecoderBackend,
 {
+    #[allow(unused_variables)]
+    fn init_converting(
+        mut backend: B,
+        input_fourcc: Fourcc,
+    ) -> Result<(C2Decoder<V>, Option<FramePool<GbmVideoFrame>>, Option<FramePool<V4l2MmapVideoFrame>>), String> {
+        let _ = backend;
+        #[cfg(feature = "gbm")]
+        {
+            let gbm_device = Arc::new(
+                GbmDevice::open(PathBuf::from("/dev/dri/renderD128"))
+                    .expect("Could not open GBM device!"),
+            );
+            let framepool = FramePool::new(move |stream_info: &StreamInfo| {
+                <Arc<GbmDevice> as Clone>::clone(&gbm_device)
+                    .new_frame(
+                        Fourcc::from(stream_info.format),
+                        stream_info.display_resolution.clone(),
+                        stream_info.coded_resolution.clone(),
+                        GbmUsage::Decode,
+                    )
+                    .expect("Could not allocate frame for auxiliary frame pool!")
+            });
+            return Ok((
+                C2Decoder::ConvertingDecoderGbm(
+                    backend.get_decoder(EncodedFormat::from(input_fourcc))?,
+                ),
+                Some(framepool),
+                None,
+            ));
+        }
+        #[cfg(feature = "v4l2")]
+        {
+            let framepool = FramePool::new(move |stream_info: &StreamInfo| {
+                V4l2MmapVideoFrame::new(
+                    Fourcc::from(stream_info.format),
+                    stream_info.display_resolution.clone(),
+                )
+            });
+            Ok((
+                C2Decoder::ConvertingDecoderV4l2(
+                    backend.get_decoder(EncodedFormat::from(input_fourcc))?,
+                ),
+                None,
+                Some(framepool),
+            ))
+        }
+        #[cfg(not(any(feature = "gbm", feature = "v4l2")))]
+        Err("No auxiliary frame backend available for converting decoder".to_string())
+    }
     // Processes events from the decoder. Primarily these are frame decoded events and DRCs.
     fn check_events(&mut self) {
         loop {
-            let stream_info = match &self.decoder {
+            #[cfg(feature = "gbm")]
+            let stream_info_gbm = match &self.decoder {
                 C2Decoder::ImportingDecoder(decoder) => decoder.stream_info().map(|x| x.clone()),
-                C2Decoder::ConvertingDecoder(decoder) => decoder.stream_info().map(|x| x.clone()),
+                C2Decoder::ConvertingDecoderGbm(decoder) => {
+                    decoder.stream_info().map(|x| x.clone())
+                }
+                #[cfg(feature = "v4l2")]
+                C2Decoder::ConvertingDecoderV4l2(_) => None,
+            };
+            #[cfg(feature = "v4l2")]
+            let stream_info_v4l2 = match &self.decoder {
+                C2Decoder::ImportingDecoder(decoder) => decoder.stream_info().map(|x| x.clone()),
+                C2Decoder::ConvertingDecoderV4l2(decoder) => {
+                    decoder.stream_info().map(|x| x.clone())
+                }
+                #[cfg(feature = "gbm")]
+                C2Decoder::ConvertingDecoderGbm(_) => None,
             };
             match &mut self.decoder {
                 C2Decoder::ImportingDecoder(decoder) => match decoder.next_event() {
@@ -115,19 +179,28 @@ where
                         job.output = Some(frame.video_frame());
                         (*self.work_done_cb.lock().unwrap())(job);
                     }
-                    Some(DecoderEvent::FormatChanged) => match stream_info {
-                        Some(stream_info) => {
-                            (*self.framepool_hint_cb.lock().unwrap())(stream_info.clone());
+                    Some(DecoderEvent::FormatChanged) => {
+                        #[cfg(feature = "gbm")]
+                        let stream_info = stream_info_gbm.clone();
+                        #[cfg(feature = "v4l2")]
+                        let stream_info = stream_info_v4l2.clone();
+                        #[cfg(not(any(feature = "gbm", feature = "v4l2")))]
+                        let stream_info: Option<StreamInfo> = None;
+                        match stream_info {
+                            Some(stream_info) => {
+                                (*self.framepool_hint_cb.lock().unwrap())(stream_info);
+                            }
+                            None => {
+                                log::debug!("Could not get stream info after format change!");
+                                *self.state.lock().unwrap() = C2State::C2Error;
+                                (*self.error_cb.lock().unwrap())(C2Status::C2BadValue);
+                            }
                         }
-                        None => {
-                            log::debug!("Could not get stream info after format change!");
-                            *self.state.lock().unwrap() = C2State::C2Error;
-                            (*self.error_cb.lock().unwrap())(C2Status::C2BadValue);
-                        }
-                    },
+                    }
                     _ => break,
                 },
-                C2Decoder::ConvertingDecoder(decoder) => match decoder.next_event() {
+                #[cfg(feature = "gbm")]
+                C2Decoder::ConvertingDecoderGbm(decoder) => match decoder.next_event() {
                     Some(DecoderEvent::FrameReady(frame)) => {
                         frame.sync().unwrap();
                         let mut job: C2DecodeJob<V> = Default::default();
@@ -142,10 +215,39 @@ where
                         job.output = Some(Arc::new(dst_frame));
                         (*self.work_done_cb.lock().unwrap())(job);
                     }
-                    Some(DecoderEvent::FormatChanged) => match stream_info {
+                    Some(DecoderEvent::FormatChanged) => match stream_info_gbm.clone() {
                         Some(stream_info) => {
                             (*self.framepool_hint_cb.lock().unwrap())(stream_info.clone());
-                            self.auxiliary_frame_pool.as_mut().unwrap().resize(&stream_info);
+                            self.auxiliary_frame_pool_gbm.as_mut().unwrap().resize(&stream_info);
+                        }
+                        None => {
+                            log::debug!("Could not get stream info after format change!");
+                            *self.state.lock().unwrap() = C2State::C2Error;
+                            (*self.error_cb.lock().unwrap())(C2Status::C2BadValue);
+                        }
+                    },
+                    _ => break,
+                },
+                #[cfg(feature = "v4l2")]
+                C2Decoder::ConvertingDecoderV4l2(decoder) => match decoder.next_event() {
+                    Some(DecoderEvent::FrameReady(frame)) => {
+                        frame.sync().unwrap();
+                        let mut job: C2DecodeJob<V> = Default::default();
+                        let mut dst_frame =
+                            (*self.alloc_cb.lock().unwrap())().expect("Allocation failed!");
+                        let src_frame = &*frame.video_frame();
+                        if let Err(err) = convert_video_frame(src_frame, &mut dst_frame) {
+                            log::debug!("Error converting VideoFrame! {err}");
+                            *self.state.lock().unwrap() = C2State::C2Error;
+                            (*self.error_cb.lock().unwrap())(C2Status::C2BadValue);
+                        }
+                        job.output = Some(Arc::new(dst_frame));
+                        (*self.work_done_cb.lock().unwrap())(job);
+                    }
+                    Some(DecoderEvent::FormatChanged) => match stream_info_v4l2.clone() {
+                        Some(stream_info) => {
+                            (*self.framepool_hint_cb.lock().unwrap())(stream_info.clone());
+                            self.auxiliary_frame_pool_v4l2.as_mut().unwrap().resize(&stream_info);
                         }
                         None => {
                             log::debug!("Could not get stream info after format change!");
@@ -181,68 +283,32 @@ where
     ) -> Result<Self, String> {
         let mut backend = B::new(options)?;
         let backend_fourccs = backend.supported_output_formats();
-        let (auxiliary_frame_pool, decoder) = if backend_fourccs.contains(&output_fourcc) {
+        let (decoder, auxiliary_frame_pool_gbm, auxiliary_frame_pool_v4l2) = if backend_fourccs.contains(&output_fourcc) {
             (
-                None,
                 C2Decoder::ImportingDecoder(
                     backend.get_decoder(EncodedFormat::from(input_fourcc))?,
                 ),
+                None,
+                None,
             )
         } else {
-            #[cfg(feature = "gbm")]
-            {
-                let gbm_device = Arc::new(
-                    GbmDevice::open(PathBuf::from("/dev/dri/renderD128"))
-                        .expect("Could not open GBM device!"),
-                );
-                let framepool = FramePool::new(move |stream_info: &StreamInfo| {
-                    // TODO: Query the driver for these alignment params.
-                    <Arc<GbmDevice> as Clone>::clone(&gbm_device)
-                        .new_frame(
-                            Fourcc::from(stream_info.format),
-                            stream_info.display_resolution.clone(),
-                            stream_info.coded_resolution.clone(),
-                            GbmUsage::Decode,
-                        )
-                        .expect("Could not allocate frame for auxiliary frame pool!")
-                });
-                (
-                    Some(framepool),
-                    C2Decoder::ConvertingDecoder(
-                        backend.get_decoder(EncodedFormat::from(input_fourcc))?,
-                    ),
-                )
-            }
-            #[cfg(feature = "v4l2")]
-            {
-                let framepool = FramePool::new(move |stream_info: &StreamInfo| {
-                    V4l2MmapVideoFrame::new(
-                        Fourcc::from(stream_info.format),
-                        stream_info.display_resolution.clone(),
-                    )
-                });
-                (
-                    Some(framepool),
-                    C2Decoder::ConvertingDecoder(
-                        backend.get_decoder(EncodedFormat::from(input_fourcc))?,
-                    ),
-                )
-            }
+            Self::init_converting(backend, input_fourcc)?
         };
         Ok(Self {
-            decoder: decoder,
-            auxiliary_frame_pool: auxiliary_frame_pool,
+            decoder,
             epoll_fd: Epoll::new(EpollCreateFlags::empty())
                 .map_err(C2DecoderPollErrorWrapper::Epoll)
                 .unwrap(),
-            awaiting_job_event: awaiting_job_event,
-            error_cb: error_cb,
-            work_done_cb: work_done_cb,
+            awaiting_job_event,
+            error_cb,
+            work_done_cb,
             framepool_hint_cb: framepool_hint_cb,
-            alloc_cb: alloc_cb,
-            work_queue: work_queue,
+            alloc_cb,
+            work_queue,
             frame_num: 0,
-            state: state,
+            state,
+            auxiliary_frame_pool_gbm,
+            auxiliary_frame_pool_v4l2,
             _phantom: Default::default(),
         })
     }
@@ -251,15 +317,16 @@ where
         self.epoll_fd = Epoll::new(EpollCreateFlags::empty())
             .map_err(C2DecoderPollErrorWrapper::Epoll)
             .unwrap();
+        let poll_fd = match &self.decoder {
+            C2Decoder::ImportingDecoder(decoder) => decoder.poll_fd(),
+            #[cfg(feature = "gbm")]
+            C2Decoder::ConvertingDecoderGbm(decoder) => decoder.poll_fd(),
+            #[cfg(feature = "v4l2")]
+            C2Decoder::ConvertingDecoderV4l2(decoder) => decoder.poll_fd(),
+        };
         let _ = self
             .epoll_fd
-            .add(
-                match &self.decoder {
-                    C2Decoder::ImportingDecoder(decoder) => decoder.poll_fd(),
-                    C2Decoder::ConvertingDecoder(decoder) => decoder.poll_fd(),
-                },
-                EpollEvent::new(EpollFlags::EPOLLIN, 1),
-            )
+            .add(poll_fd, EpollEvent::new(EpollFlags::EPOLLIN, 1))
             .map_err(C2DecoderPollErrorWrapper::EpollAdd);
         self.epoll_fd
             .add(self.awaiting_job_event.as_fd(), EpollEvent::new(EpollFlags::EPOLLIN, 2))
@@ -283,7 +350,10 @@ where
                 if job.get_drain() != DrainMode::NoDrain {
                     let flush_result = match &mut self.decoder {
                         C2Decoder::ImportingDecoder(decoder) => decoder.flush(),
-                        C2Decoder::ConvertingDecoder(decoder) => decoder.flush(),
+                        #[cfg(feature = "gbm")]
+                        C2Decoder::ConvertingDecoderGbm(decoder) => decoder.flush(),
+                        #[cfg(feature = "v4l2")]
+                        C2Decoder::ConvertingDecoderV4l2(decoder) => decoder.flush(),
                     };
                     if let Err(_) = flush_result {
                         log::debug!("Error handling drain request!");
@@ -304,9 +374,16 @@ where
                             bitstream,
                             &mut *self.alloc_cb.lock().unwrap(),
                         ),
-                        C2Decoder::ConvertingDecoder(decoder) => {
+                        #[cfg(feature = "gbm")]
+                        C2Decoder::ConvertingDecoderGbm(decoder) => {
                             decoder.decode(self.frame_num, bitstream, &mut || {
-                                self.auxiliary_frame_pool.as_mut().unwrap().alloc()
+                                self.auxiliary_frame_pool_gbm.as_mut().unwrap().alloc()
+                            })
+                        }
+                        #[cfg(feature = "v4l2")]
+                        C2Decoder::ConvertingDecoderV4l2(decoder) => {
+                            decoder.decode(self.frame_num, bitstream, &mut || {
+                                self.auxiliary_frame_pool_v4l2.as_mut().unwrap().alloc()
                             })
                         }
                     };
