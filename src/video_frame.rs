@@ -122,17 +122,21 @@ pub trait VideoFrame: Send + Sync + Sized + Debug + 'static {
             return 1;
         }
 
-        match self.decoded_format().unwrap() {
-            DecodedFormat::I420
-            | DecodedFormat::I422
-            | DecodedFormat::I444
-            | DecodedFormat::I010
-            | DecodedFormat::I012
-            | DecodedFormat::I210
-            | DecodedFormat::I212
-            | DecodedFormat::I410
-            | DecodedFormat::I412 => 3,
-            DecodedFormat::NV12 | DecodedFormat::MM21 => 2,
+        match self.decoded_format() {
+            Ok(DecodedFormat::I420)
+            | Ok(DecodedFormat::I422)
+            | Ok(DecodedFormat::I444)
+            | Ok(DecodedFormat::I010)
+            | Ok(DecodedFormat::I012)
+            | Ok(DecodedFormat::I210)
+            | Ok(DecodedFormat::I212)
+            | Ok(DecodedFormat::I410)
+            | Ok(DecodedFormat::I412) => 3,
+            Ok(DecodedFormat::NV12 | DecodedFormat::MM21) => 2,
+            Err(_) => {
+                log::error!("unable to determine decoded format, assuming 1 plane");
+                1
+            }
         }
     }
 
@@ -142,22 +146,28 @@ pub trait VideoFrame: Send + Sync + Sized + Debug + 'static {
             if self.is_compressed() {
                 ret.push(1);
             } else {
-                ret.push(match self.decoded_format().unwrap() {
-                    DecodedFormat::I420
-                    | DecodedFormat::NV12
-                    | DecodedFormat::I422
-                    | DecodedFormat::I010
-                    | DecodedFormat::I012
-                    | DecodedFormat::I210
-                    | DecodedFormat::I212
-                    | DecodedFormat::MM21 => {
+                ret.push(match self.decoded_format() {
+                    Ok(
+                        DecodedFormat::I420
+                        | DecodedFormat::NV12
+                        | DecodedFormat::I422
+                        | DecodedFormat::I010
+                        | DecodedFormat::I012
+                        | DecodedFormat::I210
+                        | DecodedFormat::I212
+                        | DecodedFormat::MM21,
+                    ) => {
                         if plane_idx == 0 {
                             1
                         } else {
                             2
                         }
                     }
-                    DecodedFormat::I444 | DecodedFormat::I410 | DecodedFormat::I412 => 1,
+                    Ok(DecodedFormat::I444 | DecodedFormat::I410 | DecodedFormat::I412) => 1,
+                    Err(_) => {
+                        log::error!("unable to determine decoded format, assuming no subsampling");
+                        1
+                    }
                 });
             }
         }
@@ -170,24 +180,32 @@ pub trait VideoFrame: Send + Sync + Sized + Debug + 'static {
             if self.is_compressed() {
                 ret.push(1);
             } else {
-                ret.push(match self.decoded_format().unwrap() {
-                    DecodedFormat::I420
-                    | DecodedFormat::NV12
-                    | DecodedFormat::I010
-                    | DecodedFormat::I012
-                    | DecodedFormat::MM21 => {
+                ret.push(match self.decoded_format() {
+                    Ok(
+                        DecodedFormat::I420
+                        | DecodedFormat::NV12
+                        | DecodedFormat::I010
+                        | DecodedFormat::I012
+                        | DecodedFormat::MM21,
+                    ) => {
                         if plane_idx == 0 {
                             1
                         } else {
                             2
                         }
                     }
-                    DecodedFormat::I422
-                    | DecodedFormat::I444
-                    | DecodedFormat::I210
-                    | DecodedFormat::I212
-                    | DecodedFormat::I410
-                    | DecodedFormat::I412 => 1,
+                    Ok(
+                        DecodedFormat::I422
+                        | DecodedFormat::I444
+                        | DecodedFormat::I210
+                        | DecodedFormat::I212
+                        | DecodedFormat::I410
+                        | DecodedFormat::I412,
+                    ) => 1,
+                    Err(_) => {
+                        log::error!("unable to determine decoded format, assuming no subsampling");
+                        1
+                    }
                 })
             }
         }
@@ -200,20 +218,28 @@ pub trait VideoFrame: Send + Sync + Sized + Debug + 'static {
             if self.is_compressed() {
                 ret.push(1);
             } else {
-                ret.push(match self.decoded_format().unwrap() {
-                    DecodedFormat::I420 | DecodedFormat::I422 | DecodedFormat::I444 => 1,
-                    DecodedFormat::I010
-                    | DecodedFormat::I012
-                    | DecodedFormat::I210
-                    | DecodedFormat::I212
-                    | DecodedFormat::I410
-                    | DecodedFormat::I412 => 2,
-                    DecodedFormat::NV12 | DecodedFormat::MM21 => {
+                ret.push(match self.decoded_format() {
+                    Ok(DecodedFormat::I420 | DecodedFormat::I422 | DecodedFormat::I444) => 1,
+                    Ok(
+                        DecodedFormat::I010
+                        | DecodedFormat::I012
+                        | DecodedFormat::I210
+                        | DecodedFormat::I212
+                        | DecodedFormat::I410
+                        | DecodedFormat::I412,
+                    ) => 2,
+                    Ok(DecodedFormat::NV12 | DecodedFormat::MM21) => {
                         if plane_idx == 0 {
                             1
                         } else {
                             2
                         }
+                    }
+                    Err(_) => {
+                        log::error!(
+                            "unable to determine decoded format, assuming 1 byte per element"
+                        );
+                        1
                     }
                 })
             }

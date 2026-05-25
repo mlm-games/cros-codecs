@@ -92,7 +92,9 @@ impl<V: VideoFrame> StatelessH264DecoderBackend for V4l2StatelessDecoderBackend<
     }
 
     fn new_field_picture(&mut self, _: u64, _: &Self::Handle) -> NewPictureResult<Self::Picture> {
-        todo!()
+        Err(NewPictureError::BackendError(anyhow::anyhow!(
+            "interlaced field pictures not supported in V4L2 backend"
+        )))
     }
 
     fn start_picture(
@@ -109,7 +111,10 @@ impl<V: VideoFrame> StatelessH264DecoderBackend for V4l2StatelessDecoderBackend<
         for entry in dpb.entries() {
             let ref_picture = match &entry.reference {
                 Some(handle) => handle.picture.clone(),
-                None => todo!(),
+                None => {
+                    log::warn!("DPB entry with no reference picture, skipping");
+                    continue;
+                }
             };
             dpb_entries.push(V4l2CtrlH264DpbEntry {
                 timestamp: ref_picture.borrow().timestamp(),

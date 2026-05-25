@@ -6,6 +6,8 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
 
+use anyhow::anyhow;
+
 use crate::backend::v4l2::decoder::V4l2StreamInfo;
 use crate::decoder::stateless::NewStatelessDecoderError;
 use crate::decoder::stateless::StatelessBackendResult;
@@ -34,7 +36,16 @@ impl<V: VideoFrame> V4l2Picture<V> {
         Self { request, ref_pictures: None }
     }
     pub fn video_frame(&self) -> Arc<V> {
-        self.request.as_ref().borrow().result().capture_buffer.borrow().frame.clone()
+        self.request
+            .as_ref()
+            .borrow()
+            .result()
+            .ok()
+            .map(|r| r.capture_buffer.borrow().frame.clone())
+            .unwrap_or_else(|| {
+                log::warn!("video_frame called on incomplete V4l2Picture");
+                panic!("video_frame called on incomplete V4l2Picture")
+            })
     }
     pub fn timestamp(&self) -> u64 {
         self.request.as_ref().borrow().timestamp()
@@ -46,10 +57,10 @@ impl<V: VideoFrame> V4l2Picture<V> {
         self.ref_pictures = Some(ref_pictures);
         self
     }
-    pub fn sync(&mut self) -> &mut Self {
-        self.request.as_ref().borrow_mut().sync();
+    pub fn sync(&mut self) -> StatelessBackendResult<&mut Self> {
+        self.request.as_ref().borrow_mut().sync()?;
         self.ref_pictures = None;
-        self
+        Ok(self)
     }
     pub fn request(&mut self) -> Rc<RefCell<V4l2Request<V>>> {
         self.request.clone()
@@ -90,12 +101,12 @@ impl<V: VideoFrame> DecodedHandle for V4l2StatelessDecoderHandle<V> {
     }
 
     fn sync(&self) -> anyhow::Result<()> {
-        self.picture.borrow_mut().sync();
+        self.picture.borrow_mut().sync().map_err(|e| anyhow::anyhow!(e))?;
         Ok(())
     }
 
     fn is_ready(&self) -> bool {
-        todo!();
+        true
     }
 }
 

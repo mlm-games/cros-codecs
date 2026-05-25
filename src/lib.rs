@@ -251,7 +251,10 @@ impl From<Fourcc> for DecodedFormat {
             "I420" => DecodedFormat::I420,
             "NV12" | "NM12" => DecodedFormat::NV12,
             "MM21" => DecodedFormat::MM21,
-            _ => todo!("Fourcc {} not yet supported", fourcc),
+            _ => {
+                log::warn!("Fourcc {} not supported for decoded format, defaulting to I420", fourcc);
+                DecodedFormat::I420
+            }
         }
     }
 }
@@ -262,7 +265,10 @@ impl From<DecodedFormat> for Fourcc {
             DecodedFormat::I420 => Fourcc::from(b"I420"),
             DecodedFormat::NV12 => Fourcc::from(b"NV12"),
             DecodedFormat::MM21 => Fourcc::from(b"MM21"),
-            _ => todo!(),
+            _ => {
+                log::warn!("DecodedFormat {:?} not supported, defaulting to NV12", format);
+                Fourcc::from(b"NV12")
+            }
         }
     }
 }
@@ -305,7 +311,10 @@ impl From<Fourcc> for EncodedFormat {
             "VP90" => EncodedFormat::VP9,
             #[cfg(feature = "av1")]
             "AV1F" => EncodedFormat::AV1,
-            _ => todo!("Fourcc {} not yet supported", fourcc),
+            _ => {
+                log::warn!("Fourcc {} not supported for encoded format, defaulting to H264", fourcc);
+                EncodedFormat::H264
+            }
         }
     }
 }

@@ -213,12 +213,15 @@ where
         alloc_cb: impl FnMut() -> Option<<J as Job>::Frame> + Send + 'static,
         options: <W as C2Worker<J>>::Options,
     ) -> Self {
+        let awaiting_job_event = match EventFd::from_flags(EfdFlags::EFD_SEMAPHORE) {
+            Ok(fd) => Arc::new(fd),
+            Err(e) => {
+                log::error!("failed to create awaiting_job_event EventFd: {:#}", e);
+                panic!("failed to create awaiting_job_event EventFd: {:#}", e);
+            }
+        };
         Self {
-            awaiting_job_event: Arc::new(
-                EventFd::from_flags(EfdFlags::EFD_SEMAPHORE)
-                    .map_err(C2WrapperError::AwaitingJobEventFd)
-                    .unwrap(),
-            ),
+            awaiting_job_event,
             input_fourcc: input_fourcc,
             output_fourcc: output_fourcc,
             error_cb: Arc::new(Mutex::new(error_cb)),
@@ -246,9 +249,9 @@ where
     // State will be C2Running after this call.
     pub fn start(&mut self) -> C2Status {
         {
-            let mut state = self.state.lock().unwrap();
+            let mut state = self.state.lock().expect("C2 state mutex poisoned");
             if *state != C2State::C2Stopped {
-                (*self.error_cb.lock().unwrap())(C2Status::C2BadState);
+                (*self.error_cb.lock().expect("C2 error_cb mutex poisoned"))(C2Status::C2BadState);
                 return C2Status::C2BadState;
             }
             *state = C2State::C2Running;
@@ -281,8 +284,8 @@ where
                 Ok(mut worker) => worker.process_loop(),
                 Err(msg) => {
                     log::debug!("Error instantiating C2Worker {}", msg);
-                    *state.lock().unwrap() = C2State::C2Error;
-                    (*error_cb.lock().unwrap())(C2Status::C2BadValue);
+                    *state.lock().expect("C2 state mutex poisoned") = C2State::C2Error;
+                    (*error_cb.lock().expect("C2 error_cb mutex poisoned"))(C2Status::C2BadValue);
                 }
             };
         }));
@@ -296,7 +299,7 @@ where
     // again. This is to ensure we clear out the work queue.
     // State will be C2Stopped after this call.
     pub fn stop(&mut self) -> C2Status {
-        *self.state.lock().unwrap() = C2State::C2Stopped;
+        *self.state.lock().expect("C2 state mutex poisoned") = C2State::C2Stopped;
         let mut worker_thread: Option<JoinHandle<()>> = None;
         std::mem::swap(&mut worker_thread, &mut self.worker_thread);
         self.worker_thread = match worker_thread {
@@ -307,9 +310,11 @@ where
             None => None,
         };
 
-        self.work_queue.lock().unwrap().drain(..);
+        self.work_queue.lock().expect("C2 work_queue mutex poisoned").drain(..);
 
-        self.awaiting_job_event.write(1).unwrap();
+        if let Err(e) = self.awaiting_job_event.write(1) {
+            log::error!("failed to write awaiting_job_event during stop: {:#}", e);
+        }
 
         C2Status::C2Ok
     }
@@ -318,14 +323,16 @@ where
     // State must be C2Running or this function is invalid.
     // State will remain C2Running.
     pub fn queue(&mut self, work_items: Vec<J>) -> C2Status {
-        if *self.state.lock().unwrap() != C2State::C2Running {
-            (*self.error_cb.lock().unwrap())(C2Status::C2BadState);
+        if *self.state.lock().expect("C2 state mutex poisoned") != C2State::C2Running {
+            (*self.error_cb.lock().expect("C2 error_cb mutex poisoned"))(C2Status::C2BadState);
             return C2Status::C2BadState;
         }
 
-        self.work_queue.lock().unwrap().extend(work_items.into_iter());
+        self.work_queue.lock().expect("C2 work_queue mutex poisoned").extend(work_items.into_iter());
 
-        self.awaiting_job_event.write(1).unwrap();
+        if let Err(e) = self.awaiting_job_event.write(1) {
+            log::error!("failed to write awaiting_job_event during queue: {:#}", e);
+        }
 
         C2Status::C2Ok
     }
@@ -334,12 +341,12 @@ where
     // State will not change after this call.
     // TODO: Support different flush modes.
     pub fn flush(&mut self, flushed_work: &mut Vec<J>) -> C2Status {
-        if *self.state.lock().unwrap() != C2State::C2Running {
-            (*self.error_cb.lock().unwrap())(C2Status::C2BadState);
+        if *self.state.lock().expect("C2 state mutex poisoned") != C2State::C2Running {
+            (*self.error_cb.lock().expect("C2 error_cb mutex poisoned"))(C2Status::C2BadState);
             return C2Status::C2BadState;
         }
 
-        let mut tmp = self.work_queue.lock().unwrap().drain(..).collect::<Vec<J>>();
+        let mut tmp = self.work_queue.lock().expect("C2 work_queue mutex poisoned").drain(..).collect::<Vec<J>>();
         flushed_work.append(&mut tmp);
 
         C2Status::C2Ok
@@ -353,16 +360,18 @@ where
     // the state will change to C2Stopped.
     // TODO: Support different drain modes.
     pub fn drain(&mut self, mode: DrainMode) -> C2Status {
-        if *self.state.lock().unwrap() != C2State::C2Running {
-            (*self.error_cb.lock().unwrap())(C2Status::C2BadState);
+        if *self.state.lock().expect("C2 state mutex poisoned") != C2State::C2Running {
+            (*self.error_cb.lock().expect("C2 error_cb mutex poisoned"))(C2Status::C2BadState);
             return C2Status::C2BadState;
         }
 
         let mut drain_job: J = Default::default();
         drain_job.set_drain(mode);
-        self.work_queue.lock().unwrap().push_back(drain_job);
+        self.work_queue.lock().expect("C2 work_queue mutex poisoned").push_back(drain_job);
 
-        self.awaiting_job_event.write(1).unwrap();
+        if let Err(e) = self.awaiting_job_event.write(1) {
+            log::error!("failed to write awaiting_job_event during drain: {:#}", e);
+        }
 
         C2Status::C2Ok
     }

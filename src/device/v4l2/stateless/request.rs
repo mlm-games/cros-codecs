@@ -80,16 +80,22 @@ struct PendingRequestHandle<V: VideoFrame> {
 }
 
 impl<V: VideoFrame> PendingRequestHandle<V> {
-    fn sync(self) -> DoneRequestHandle<V> {
-        DoneRequestHandle {
-            capture_buffer: Rc::new(RefCell::new(self.device.sync(self.timestamp))),
-        }
+    fn sync(self) -> Result<DoneRequestHandle<V>, StatelessBackendError> {
+        let capture_buffer = self
+            .device
+            .sync(self.timestamp)
+            .map_err(|e| StatelessBackendError::Other(anyhow::anyhow!(e)))?;
+        Ok(DoneRequestHandle { capture_buffer: Rc::new(RefCell::new(capture_buffer)) })
     }
     fn associate_dequeued_buffer(
         &mut self,
         capture_buffer: V4l2CaptureBuffer<V>,
     ) -> DoneRequestHandle<V> {
-        self.picture.upgrade().unwrap().as_ref().try_borrow_mut().unwrap().drop_references();
+        if let Some(rc) = self.picture.upgrade() {
+            if let Ok(mut picture) = rc.as_ref().try_borrow_mut() {
+                picture.drop_references();
+            }
+        }
         DoneRequestHandle { capture_buffer: Rc::new(RefCell::new(capture_buffer)) }
     }
 }
@@ -128,13 +134,16 @@ impl<V: VideoFrame> RequestHandle<V> {
             Self::Init(handle) => handle.timestamp,
             Self::Pending(handle) => handle.timestamp,
             Self::Done(handle) => handle.capture_buffer.borrow().timestamp(),
-            _ => panic!("ERROR"),
+            _ => 0,
         }
     }
     fn which(&self) -> ioctl::CtrlWhich {
         match self {
             Self::Init(handle) => handle.which(),
-            _ => panic!("ERROR"),
+            _ => {
+                log::warn!("which() called on non-Init request handle");
+                ioctl::CtrlWhich::Current
+            }
         }
     }
     fn ioctl<C, T>(&mut self, ctrl: C) -> StatelessBackendResult<&mut Self>
@@ -154,9 +163,11 @@ impl<V: VideoFrame> RequestHandle<V> {
     }
     fn write(&mut self, data: &[u8]) -> &mut Self {
         match self {
-            Self::Init(handle) => handle.write(data),
-            _ => panic!("ERROR"),
-        };
+            Self::Init(handle) => {
+                handle.write(data);
+            }
+            _ => log::warn!("write called on non-Init request handle"),
+        }
         self
     }
 
@@ -168,23 +179,29 @@ impl<V: VideoFrame> RequestHandle<V> {
             _ => Err(StatelessBackendError::Other(anyhow::anyhow!("incorrect request state"))),
         }
     }
-    fn sync(&mut self) {
+    fn sync(&mut self) -> StatelessBackendResult<()> {
         match std::mem::take(self) {
-            Self::Pending(handle) => *self = Self::Done(handle.sync()),
-            s @ Self::Done(_) => *self = s,
-            _ => panic!("ERROR"),
+            Self::Pending(handle) => {
+                *self = Self::Done(handle.sync()?);
+                Ok(())
+            }
+            s @ Self::Done(_) => {
+                *self = s;
+                Ok(())
+            }
+            _ => Err(StatelessBackendError::Other(anyhow::anyhow!("incorrect request state"))),
         }
     }
-    fn result(&self) -> V4l2Result<V> {
+    fn result(&self) -> StatelessBackendResult<V4l2Result<V>> {
         match self {
-            Self::Done(handle) => handle.result(),
-            _ => panic!("ERROR"),
+            Self::Done(handle) => Ok(handle.result()),
+            _ => Err(StatelessBackendError::Other(anyhow::anyhow!("incorrect request state"))),
         }
     }
     fn set_picture_ref(&mut self, picture: Weak<RefCell<V4l2Picture<V>>>) {
         match self {
             Self::Init(handle) => handle.set_picture_ref(picture),
-            _ => panic!("ERROR"),
+            _ => log::warn!("set_picture_ref called on non-Init request handle"),
         }
     }
     fn associate_dequeued_buffer(&mut self, capture_buffer: V4l2CaptureBuffer<V>) {
@@ -192,7 +209,7 @@ impl<V: VideoFrame> RequestHandle<V> {
             Self::Pending(handle) => {
                 *self = Self::Done(handle.associate_dequeued_buffer(capture_buffer))
             }
-            _ => panic!("ERROR"),
+            _ => log::warn!("associate_dequeued_buffer called on non-Pending request handle"),
         }
     }
 }
@@ -230,10 +247,10 @@ impl<V: VideoFrame> V4l2Request<V> {
     pub fn submit(&mut self) -> StatelessBackendResult<()> {
         self.0.submit()
     }
-    pub fn sync(&mut self) {
-        self.0.sync();
+    pub fn sync(&mut self) -> StatelessBackendResult<()> {
+        self.0.sync()
     }
-    pub fn result(&self) -> V4l2Result<V> {
+    pub fn result(&self) -> StatelessBackendResult<V4l2Result<V>> {
         self.0.result()
     }
     pub fn set_picture_ref(&mut self, picture: Weak<RefCell<V4l2Picture<V>>>) {

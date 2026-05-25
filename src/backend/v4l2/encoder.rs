@@ -518,15 +518,17 @@ where
         Self::apply_parm(device, QueueType::VideoOutputMplane, framerate);
         Self::apply_parm(device, QueueType::VideoCaptureMplane, 1000);
 
-        Self::apply_ctrl(
-            device,
-            "bitrate mode",
-            match rate_control {
-                RateControl::ConstantBitrate(_) => VideoBitrateMode::ConstantBitrate,
-                RateControl::VariableBitrate { .. } => todo!(),
-                RateControl::ConstantQuality(_) => VideoBitrateMode::ConstantQuality,
-            },
-        )?;
+        let bitrate_mode = match rate_control {
+            RateControl::ConstantBitrate(_) => VideoBitrateMode::ConstantBitrate,
+            RateControl::VariableBitrate { .. } => {
+                return Err(ControlError {
+                    which: "bitrate mode",
+                    error: Errno::ENOTSUP,
+                })
+            }
+            RateControl::ConstantQuality(_) => VideoBitrateMode::ConstantQuality,
+        };
+        Self::apply_ctrl(device, "bitrate mode", bitrate_mode)?;
 
         if let Some(bitrate) = rate_control.bitrate_target() {
             Self::apply_ctrl(device, "bitrate", VideoBitrate(bitrate as i32))?;

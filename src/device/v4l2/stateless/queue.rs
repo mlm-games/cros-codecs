@@ -102,6 +102,8 @@ pub enum QueueError {
     ResetOutputQueue,
     #[error("failed to reset CAPTURE queue.")]
     ResetCaptureQueue,
+    #[error("failed to allocate request.")]
+    RequestAlloc,
 }
 
 impl From<QueueError> for DecodeError {
