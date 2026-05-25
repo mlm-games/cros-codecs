@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 use std::path::PathBuf;
-use std::rc::Rc;
+use std::sync::Arc;
 
 use crate::c2_wrapper::c2_decoder::C2DecoderBackend;
 use crate::decoder::stateless::av1::Av1;
@@ -25,7 +25,7 @@ pub struct C2VaapiDecoderOptions {
 }
 
 pub struct C2VaapiDecoder {
-    display: Rc<libva::Display>,
+    display: Arc<libva::Display>,
 }
 
 impl C2DecoderBackend for C2VaapiDecoder {
@@ -33,12 +33,16 @@ impl C2DecoderBackend for C2VaapiDecoder {
 
     fn new(options: C2VaapiDecoderOptions) -> Result<Self, String> {
         let display = match options.libva_device_path {
-            Some(libva_device_path) => libva::Display::open_drm_display(libva_device_path.clone())
-                .map_err(|_| format!("failed to open libva display {libva_device_path:?}"))?,
-            None => libva::Display::open().ok_or("failed to open libva display")?,
+            Some(libva_device_path) => Arc::new(
+                libva::Display::open_drm_display(libva_device_path.clone())
+                    .map_err(|_| format!("failed to open libva display {libva_device_path:?}"))?,
+            ),
+            None => Arc::new(
+                libva::Display::open().ok_or("failed to open libva display")?,
+            ),
         };
 
-        Ok(Self { display: display })
+        Ok(Self { display })
     }
 
     // TODO: Actually query the driver for this information.

@@ -475,7 +475,7 @@ impl VideoFrame for GenericDmaVideoFrame {
     #[cfg(feature = "vaapi")]
     type MemDescriptor = GenericDmaVideoFrame;
     #[cfg(feature = "vaapi")]
-    type NativeHandle = Surface<GenericDmaVideoFrame>;
+    type VaapiHandle = Surface<GenericDmaVideoFrame>;
 
     fn fourcc(&self) -> Fourcc {
         self.layout.format.0.clone()
@@ -520,7 +520,7 @@ impl VideoFrame for GenericDmaVideoFrame {
     fn process_dqbuf(&mut self, _device: Arc<Device>, _format: &Format, _buf: &V4l2Buffer) {}
 
     #[cfg(feature = "vaapi")]
-    fn to_native_handle(&self, display: &Arc<Display>) -> Result<Self::NativeHandle, String> {
+    fn to_native_handle(&self, display: &Arc<Display>) -> Result<Self::VaapiHandle, String> {
         if self.is_compressed() {
             return Err("Compressed buffer export to VA-API is not currently supported".to_string());
         }

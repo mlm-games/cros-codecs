@@ -34,7 +34,10 @@ pub struct PooledVideoFrame<V: VideoFrame> {
 impl<V: VideoFrame> VideoFrame for PooledVideoFrame<V> {
     #[cfg(feature = "vaapi")]
     type MemDescriptor = V::MemDescriptor;
+    #[cfg(feature = "vaapi")]
+    type VaapiHandle = V::VaapiHandle;
 
+    #[cfg(feature = "v4l2")]
     type NativeHandle = V::NativeHandle;
 
     fn fourcc(&self) -> Fourcc {
@@ -72,7 +75,7 @@ impl<V: VideoFrame> VideoFrame for PooledVideoFrame<V> {
     }
 
     #[cfg(feature = "vaapi")]
-    fn to_native_handle(&self, display: &Arc<Display>) -> Result<Self::NativeHandle, String> {
+    fn to_native_handle(&self, display: &Arc<Display>) -> Result<Self::VaapiHandle, String> {
         self.inner.as_ref().unwrap().to_native_handle(display)
     }
 }

@@ -73,7 +73,7 @@ pub trait VideoFrame: Send + Sync + Sized + Debug + 'static {
     #[cfg(feature = "vaapi")]
     type MemDescriptor: SurfaceMemoryDescriptor;
     #[cfg(feature = "vaapi")]
-    type NativeHandle: Equivalent<Surface<Self::MemDescriptor>>;
+    type VaapiHandle: Equivalent<Surface<Self::MemDescriptor>>;
 
     fn fourcc(&self) -> Fourcc;
 
@@ -298,7 +298,7 @@ pub trait VideoFrame: Send + Sync + Sized + Debug + 'static {
     fn process_dqbuf(&mut self, device: Arc<Device>, format: &Format, buf: &V4l2Buffer);
 
     #[cfg(feature = "vaapi")]
-    fn to_native_handle(&self, display: &Arc<Display>) -> Result<Self::NativeHandle, String>;
+    fn to_native_handle(&self, display: &Arc<Display>) -> Result<Self::VaapiHandle, String>;
 }
 
 // Rust has restrictions about implementing foreign types, so this is a stupid workaround to get

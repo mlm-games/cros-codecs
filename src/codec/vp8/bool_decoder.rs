@@ -197,14 +197,15 @@ impl<'a> BoolDecoder<'a> {
 
     /// Returns the current bit position.
     pub fn pos(&self) -> usize {
-        let mut bit_count = (self.count + 8) as usize;
+        let count_plus_8 = self.count.checked_add(8).unwrap_or(0);
+        let mut bit_count = if count_plus_8 < 0 { 0 } else { count_plus_8 as usize };
 
         if bit_count > BD_VALUE_SIZE {
             bit_count = bit_count.saturating_sub(LOTS_OF_BITS as usize)
         }
 
         let pos = self.data.position() as usize;
-        pos - bit_count
+        pos.saturating_sub(bit_count)
     }
 }
 

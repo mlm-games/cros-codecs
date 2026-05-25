@@ -220,8 +220,6 @@ where
                 0,
                 0,
                 0,
-                // seg_id_block_size
-                0,
             ),
         ));
 

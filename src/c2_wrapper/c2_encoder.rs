@@ -52,17 +52,21 @@ pub trait C2EncoderBackend {
 
     // Returns a new encoder, the visible resolution, and the coded resolution.
     #[cfg(feature = "vaapi")]
-    fn get_encoder<V: VideoFrame>(
+    fn get_encoder_vaapi<V: VideoFrame>(
         &mut self,
-        input_format: DecodedFormat,
-        output_format: EncodedFormat,
-    ) -> Result<(Box<dyn VideoEncoder<V>>, Resolution, Resolution), String>;
+        _input_format: DecodedFormat,
+        _output_format: EncodedFormat,
+    ) -> Result<(Box<dyn VideoEncoder<V>>, Resolution, Resolution), String> {
+        Err("VAAPI encoder not supported by this backend".to_string())
+    }
     #[cfg(feature = "v4l2")]
-    fn get_encoder<V: VideoFrame>(
+    fn get_encoder_v4l2<V: VideoFrame>(
         &mut self,
-        input_format: DecodedFormat,
-        output_format: EncodedFormat,
-    ) -> Result<(Box<dyn VideoEncoder<V4l2VideoFrame<V>>>, Resolution, Resolution), String>;
+        _input_format: DecodedFormat,
+        _output_format: EncodedFormat,
+    ) -> Result<(Box<dyn VideoEncoder<V4l2VideoFrame<V>>>, Resolution, Resolution), String> {
+        Err("V4L2 encoder not supported by this backend".to_string())
+    }
 }
 
 pub struct C2EncoderWorker<V, B>
@@ -71,9 +75,9 @@ where
     B: C2EncoderBackend,
 {
     #[cfg(feature = "vaapi")]
-    encoder: Box<dyn VideoEncoder<V>>,
+    encoder_vaapi: Option<Box<dyn VideoEncoder<V>>>,
     #[cfg(feature = "v4l2")]
-    encoder: Box<dyn VideoEncoder<V4l2VideoFrame<V>>>,
+    encoder_v4l2: Option<Box<dyn VideoEncoder<V4l2VideoFrame<V>>>>,
     awaiting_job_event: Arc<EventFd>,
     error_cb: Arc<Mutex<dyn FnMut(C2Status) + Send + 'static>>,
     work_done_cb: Arc<Mutex<dyn FnMut(C2EncodeJob<V>) + Send + 'static>>,
@@ -92,9 +96,14 @@ where
     V: VideoFrame,
     B: C2EncoderBackend,
 {
+    #[allow(unused)]
     fn poll_complete_frames(&mut self) {
         loop {
-            match self.encoder.poll() {
+            #[cfg(feature = "vaapi")]
+            let poll_result = self.encoder_vaapi.as_mut().unwrap().poll();
+            #[cfg(feature = "v4l2")]
+            let poll_result = self.encoder_v4l2.as_mut().unwrap().poll();
+            match poll_result {
                 Ok(Some(coded)) => {
                     let mut job = self.in_flight_queue.pop_front().unwrap();
                     job.output = coded.bitstream;
@@ -132,31 +141,69 @@ where
         options: Self::Options,
     ) -> Result<Self, String> {
         let mut backend = B::new(options)?;
-        let (encoder, visible_resolution, coded_resolution) = backend
-            .get_encoder(DecodedFormat::from(input_fourcc), EncodedFormat::from(output_fourcc))?;
-        (*framepool_hint_cb.lock().unwrap())(StreamInfo {
-            format: DecodedFormat::from(input_fourcc),
-            coded_resolution: coded_resolution.clone(),
-            display_resolution: visible_resolution.clone(),
-            // Needs to be equal to the pipeline depth, which is decided by the client. Ideally, we
-            // will never need these temp frames though if Gralloc works properly.
-            min_num_frames: 0,
-        });
-
-        Ok(Self {
-            encoder: encoder,
-            awaiting_job_event: awaiting_job_event,
-            error_cb: error_cb,
-            work_done_cb: work_done_cb,
-            work_queue: work_queue,
-            in_flight_queue: VecDeque::new(),
-            state: state,
-            alloc_cb: alloc_cb,
-            current_tunings: Default::default(),
-            visible_resolution: visible_resolution,
-            coded_resolution: coded_resolution,
-            _phantom: Default::default(),
-        })
+        let visible_resolution;
+        let coded_resolution;
+        #[cfg(feature = "vaapi")]
+        {
+            let (enc, vis, cod) = backend
+                .get_encoder_vaapi(DecodedFormat::from(input_fourcc), EncodedFormat::from(output_fourcc))?;
+            visible_resolution = vis;
+            coded_resolution = cod;
+            (*framepool_hint_cb.lock().unwrap())(StreamInfo {
+                format: DecodedFormat::from(input_fourcc),
+                coded_resolution: coded_resolution.clone(),
+                display_resolution: visible_resolution.clone(),
+                min_num_frames: 0,
+            });
+            return Ok(Self {
+                encoder_vaapi: Some(enc),
+                encoder_v4l2: None,
+                awaiting_job_event,
+                error_cb,
+                work_done_cb,
+                work_queue,
+                in_flight_queue: VecDeque::new(),
+                state,
+                alloc_cb,
+                current_tunings: Default::default(),
+                visible_resolution,
+                coded_resolution,
+                _phantom: Default::default(),
+            });
+        }
+        #[cfg(feature = "v4l2")]
+        {
+            let (enc, vis, cod) = backend
+                .get_encoder_v4l2(DecodedFormat::from(input_fourcc), EncodedFormat::from(output_fourcc))?;
+            visible_resolution = vis;
+            coded_resolution = cod;
+            (*framepool_hint_cb.lock().unwrap())(StreamInfo {
+                format: DecodedFormat::from(input_fourcc),
+                coded_resolution: coded_resolution.clone(),
+                display_resolution: visible_resolution.clone(),
+                min_num_frames: 0,
+            });
+            Ok(Self {
+                encoder_vaapi: None,
+                encoder_v4l2: Some(enc),
+                awaiting_job_event,
+                error_cb,
+                work_done_cb,
+                work_queue,
+                in_flight_queue: VecDeque::new(),
+                state,
+                alloc_cb,
+                current_tunings: Default::default(),
+                visible_resolution,
+                coded_resolution,
+                _phantom: Default::default(),
+            })
+        }
+        #[cfg(not(any(feature = "vaapi", feature = "v4l2")))]
+        {
+            let _ = backend;
+            Err("No encoder backend available".to_string())
+        }
     }
 
     fn process_loop(&mut self) {
@@ -185,7 +232,11 @@ where
                 .pop_front()
                 .expect("Missing job from work queue!");
             if job.get_drain() != DrainMode::NoDrain {
-                if let Err(err) = self.encoder.drain() {
+                #[cfg(feature = "vaapi")]
+                let drain_result = self.encoder_vaapi.as_mut().unwrap().drain();
+                #[cfg(feature = "v4l2")]
+                let drain_result = self.encoder_v4l2.as_mut().unwrap().drain();
+                if let Err(err) = drain_result {
                     log::debug!("Error draining encoder! {:?}", err);
                     *self.state.lock().unwrap() = C2State::C2Error;
                     (*self.error_cb.lock().unwrap())(C2Status::C2BadValue);
@@ -241,7 +292,11 @@ where
                 if job.bitrate != curr_bitrate || new_framerate != self.current_tunings.framerate {
                     self.current_tunings.rate_control = RateControl::ConstantBitrate(job.bitrate);
                     self.current_tunings.framerate = new_framerate;
-                    if let Err(err) = self.encoder.tune(self.current_tunings.clone()) {
+                    #[cfg(feature = "vaapi")]
+                    let tune_result = self.encoder_vaapi.as_mut().unwrap().tune(self.current_tunings.clone());
+                    #[cfg(feature = "v4l2")]
+                    let tune_result = self.encoder_v4l2.as_mut().unwrap().tune(self.current_tunings.clone());
+                    if let Err(err) = tune_result {
                         log::debug!("Error adjusting tunings! {:?}", err);
                         *self.state.lock().unwrap() = C2State::C2Error;
                         (*self.error_cb.lock().unwrap())(C2Status::C2BadValue);
@@ -256,9 +311,9 @@ where
                     force_idr: false,
                 };
                 #[cfg(feature = "vaapi")]
-                let encode_result = self.encoder.encode(meta, frame);
+                let encode_result = self.encoder_vaapi.as_mut().unwrap().encode(meta, frame);
                 #[cfg(feature = "v4l2")]
-                let encode_result = self.encoder.encode(meta, V4l2VideoFrame(frame));
+                let encode_result = self.encoder_v4l2.as_mut().unwrap().encode(meta, V4l2VideoFrame(frame));
                 match encode_result {
                     Ok(_) => self.in_flight_queue.push_back(job),
                     Err(err) => {

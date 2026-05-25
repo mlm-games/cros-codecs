@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-use std::rc::Rc;
+use std::sync::Arc;
 
 use crate::c2_wrapper::c2_encoder::C2EncoderBackend;
 use crate::encoder::av1::EncoderConfig as AV1EncoderConfig;
@@ -27,7 +27,7 @@ pub struct C2VaapiEncoderOptions {
 }
 
 pub struct C2VaapiEncoder {
-    display: Rc<libva::Display>,
+    display: Arc<libva::Display>,
     low_power: bool,
     visible_resolution: Resolution,
     coded_resolution: Resolution,
@@ -41,9 +41,10 @@ impl C2EncoderBackend for C2VaapiEncoder {
         const VAAPI_HEIGHT_ALIGN: u32 = 16;
 
         // TODO: Support alternative display paths
-        let display = libva::Display::open().ok_or("Error opening LibVA display!".to_string())?;
+        let display =
+            Arc::new(libva::Display::open().ok_or("Error opening LibVA display!".to_string())?);
         Ok(Self {
-            display: display,
+            display,
             low_power: options.low_power,
             visible_resolution: options.visible_resolution.clone(),
             // TODO: This really shouldn't be necessary, but for some reason minigbm gets the
@@ -55,7 +56,7 @@ impl C2EncoderBackend for C2VaapiEncoder {
         })
     }
 
-    fn get_encoder<V: VideoFrame>(
+    fn get_encoder_vaapi<V: VideoFrame>(
         &mut self,
         input_format: DecodedFormat,
         output_format: EncodedFormat,
