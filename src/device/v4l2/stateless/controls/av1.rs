@@ -96,6 +96,8 @@ use crate::codec::av1::parser::GlobalMotionParams;
 use crate::codec::av1::parser::LoopFilterParams;
 use crate::codec::av1::parser::LoopRestorationParams;
 use crate::codec::av1::parser::QuantizationParams;
+use crate::codec::av1::parser::NUM_REF_FRAMES;
+use crate::codec::av1::parser::REFS_PER_FRAME;
 use crate::codec::av1::parser::SegmentationParams;
 use crate::codec::av1::parser::SequenceHeaderObu;
 use crate::codec::av1::parser::Tile;
@@ -354,6 +356,28 @@ impl V4l2CtrlAv1FrameParams {
             self.handle.global_motion.params[i].copy_from_slice(&global_motion.gm_params[i][0..6]);
             self.handle.global_motion.invalid |= (global_motion.warp_valid[i] as u8) << i;
         }
+        self
+    }
+
+    pub fn set_reference_frame_ts(
+        &mut self,
+        reference_frames: &[Option<u64>; NUM_REF_FRAMES],
+    ) -> &mut Self {
+        for (i, ts) in reference_frames.iter().enumerate() {
+            self.handle.reference_frame_ts[i] = ts.unwrap_or(0) as u64;
+        }
+        self
+    }
+
+    pub fn set_ref_frame_idx(&mut self, ref_frame_idx: &[u8; REFS_PER_FRAME]) -> &mut Self {
+        for (i, idx) in ref_frame_idx.iter().enumerate() {
+            self.handle.ref_frame_idx[i] = *idx as i8;
+        }
+        self
+    }
+
+    pub fn set_refresh_frame_flags(&mut self, flags: u8) -> &mut Self {
+        self.handle.refresh_frame_flags = flags;
         self
     }
 

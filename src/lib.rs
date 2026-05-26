@@ -250,6 +250,14 @@ impl From<Fourcc> for DecodedFormat {
         match fourcc.to_string().as_str() {
             "I420" => DecodedFormat::I420,
             "NV12" | "NM12" => DecodedFormat::NV12,
+            "I422" => DecodedFormat::I422,
+            "I444" => DecodedFormat::I444,
+            "I010" | "P010" => DecodedFormat::I010,
+            "I012" | "P012" => DecodedFormat::I012,
+            "I210" => DecodedFormat::I210,
+            "I212" => DecodedFormat::I212,
+            "I410" => DecodedFormat::I410,
+            "I412" => DecodedFormat::I412,
             "MM21" => DecodedFormat::MM21,
             _ => {
                 log::warn!("Fourcc {} not supported for decoded format, defaulting to I420", fourcc);
@@ -264,11 +272,15 @@ impl From<DecodedFormat> for Fourcc {
         match format {
             DecodedFormat::I420 => Fourcc::from(b"I420"),
             DecodedFormat::NV12 => Fourcc::from(b"NV12"),
+            DecodedFormat::I422 => Fourcc::from(b"I422"),
+            DecodedFormat::I444 => Fourcc::from(b"I444"),
+            DecodedFormat::I010 => Fourcc::from(b"I010"),
+            DecodedFormat::I012 => Fourcc::from(b"I012"),
+            DecodedFormat::I210 => Fourcc::from(b"I210"),
+            DecodedFormat::I212 => Fourcc::from(b"I212"),
+            DecodedFormat::I410 => Fourcc::from(b"I410"),
+            DecodedFormat::I412 => Fourcc::from(b"I412"),
             DecodedFormat::MM21 => Fourcc::from(b"MM21"),
-            _ => {
-                log::warn!("DecodedFormat {:?} not supported, defaulting to NV12", format);
-                Fourcc::from(b"NV12")
-            }
         }
     }
 }

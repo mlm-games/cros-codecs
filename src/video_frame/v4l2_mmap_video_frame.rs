@@ -23,17 +23,46 @@ use v4l2r::Format;
 
 pub struct V4l2MmapMapping {
     planes: Vec<PlaneMapping>,
+    // For contiguous formats
+    logical_offsets: Vec<usize>,
+    logical_sizes: Vec<usize>,
 }
 
 impl<'a> ReadMapping<'a> for V4l2MmapMapping {
     fn get(&self) -> Vec<&[u8]> {
-        self.planes.iter().map(|x| &*x.data).collect()
+        if self.logical_offsets.is_empty() {
+            return self.planes.iter().map(|x| x.as_ref()).collect();
+        }
+        let base = self.planes[0].data.as_ptr();
+        self.logical_offsets
+            .iter()
+            .zip(&self.logical_sizes)
+            .map(|(&off, &size)| unsafe { std::slice::from_raw_parts(base.add(off), size) })
+            .collect()
     }
 }
 
 impl<'a> WriteMapping<'a> for V4l2MmapMapping {
     fn get(&self) -> Vec<RefCell<&'a mut [u8]>> {
-        panic!("Writable mappings are not supported for V4L2 MMAP backed frames");
+        if self.logical_offsets.is_empty() {
+            return self
+                .planes
+                .iter()
+                .map(|x| {
+                    let ptr = x.data.as_ptr() as *mut u8;
+                    let len = x.data.len();
+                    unsafe { RefCell::new(std::slice::from_raw_parts_mut(ptr, len)) }
+                })
+                .collect();
+        }
+        let base = self.planes[0].data.as_ptr() as *mut u8;
+        self.logical_offsets
+            .iter()
+            .zip(&self.logical_sizes)
+            .map(|(&off, &size)| unsafe {
+                RefCell::new(std::slice::from_raw_parts_mut(base.add(off), size))
+            })
+            .collect()
     }
 }
 
@@ -59,10 +88,6 @@ impl Debug for V4l2MmapVideoFrame {
 
 impl V4l2MmapVideoFrame {
     pub fn new(fourcc: Fourcc, resolution: Resolution) -> Self {
-        if Fourcc::from(b"MM21") == fourcc || Fourcc::from(b"NM12") == fourcc {
-            panic!("Contiguous formats are not currently supported for V4L2 MMAP!");
-        }
-
         V4l2MmapVideoFrame {
             fourcc,
             resolution,
@@ -75,20 +100,53 @@ impl V4l2MmapVideoFrame {
 
     fn map_helper(&self) -> Result<V4l2MmapMapping, String> {
         let device = self.device.as_ref().ok_or("No V4L2 device!".to_string())?;
-        // SAFETY: The unsafe block is just because we're accessing a union, which is guaranteed
-        // to be initialized in this circumstance because the handle is of type MmapHandle.
-        // TODO: This will not work for single planar video formats such as NV12.
-        Ok(V4l2MmapMapping {
-            planes: self
-                .buffer
-                .as_ref()
-                .ok_or("No V4L2 buffer!")?
-                .as_v4l2_planes()
-                .iter()
-                .map(|x| unsafe { mmap(device, x.m.mem_offset, x.length) })
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(|err| format!("Error mmap'ing buffer {err}"))?,
-        })
+        let buffer = self.buffer.as_ref().ok_or("No V4L2 buffer!")?;
+        let v4l2_planes = buffer.as_v4l2_planes();
+
+        let mapped: Vec<PlaneMapping> = v4l2_planes
+            .iter()
+            .map(|x| unsafe { mmap(device, x.m.mem_offset, x.length) })
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|err| format!("Error mmap'ing buffer {err}"))?;
+
+        let num_logical = self.num_planes();
+        let num_v4l2 = mapped.len();
+
+        if num_v4l2 >= num_logical {
+            return Ok(V4l2MmapMapping {
+                planes: mapped,
+                logical_offsets: Vec::new(),
+                logical_sizes: Vec::new(),
+            });
+        }
+
+        let vertical_subsampling = self.get_vertical_subsampling();
+        let horizontal_subsampling = self.get_horizontal_subsampling();
+        let bpp = self.get_bytes_per_element();
+        let plane_sizes: Vec<usize> = (0..num_logical)
+            .map(|i| {
+                align_up(self.resolution.width as usize, horizontal_subsampling[i])
+                    / horizontal_subsampling[i]
+                    * align_up(self.resolution.height as usize, vertical_subsampling[i])
+                    / vertical_subsampling[i]
+                    * bpp[i]
+            })
+            .collect();
+
+        let full = mapped.into_iter().next().unwrap();
+        let full_len = full.data.len();
+
+        let mut offset = 0;
+        let mut offsets = Vec::new();
+        let mut sizes = Vec::new();
+        for &size in &plane_sizes {
+            assert!(offset + size <= full_len);
+            offsets.push(offset);
+            sizes.push(size);
+            offset += size;
+        }
+
+        Ok(V4l2MmapMapping { planes: vec![full], logical_offsets: offsets, logical_sizes: sizes })
     }
 }
 

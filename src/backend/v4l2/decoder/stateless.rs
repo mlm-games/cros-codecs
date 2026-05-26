@@ -60,6 +60,10 @@ impl<V: VideoFrame> V4l2Picture<V> {
         self.ref_pictures = None;
         Ok(self)
     }
+    pub fn is_ready(&self) -> bool {
+        self.request.as_ref().borrow().is_ready()
+    }
+
     pub fn request(&mut self) -> Rc<RefCell<V4l2Request<V>>> {
         self.request.clone()
     }
@@ -104,7 +108,7 @@ impl<V: VideoFrame> DecodedHandle for V4l2StatelessDecoderHandle<V> {
     }
 
     fn is_ready(&self) -> bool {
-        true
+        self.picture.borrow().is_ready()
     }
 }
 

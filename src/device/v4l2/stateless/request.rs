@@ -192,6 +192,10 @@ impl<V: VideoFrame> RequestHandle<V> {
             _ => Err(StatelessBackendError::Other(anyhow::anyhow!("incorrect request state"))),
         }
     }
+    fn is_ready(&self) -> bool {
+        matches!(self, Self::Done(_))
+    }
+
     fn result(&self) -> StatelessBackendResult<V4l2Result<V>> {
         match self {
             Self::Done(handle) => Ok(handle.result()),
@@ -250,6 +254,10 @@ impl<V: VideoFrame> V4l2Request<V> {
     pub fn sync(&mut self) -> StatelessBackendResult<()> {
         self.0.sync()
     }
+    pub fn is_ready(&self) -> bool {
+        self.0.is_ready()
+    }
+
     pub fn result(&self) -> StatelessBackendResult<V4l2Result<V>> {
         self.0.result()
     }
