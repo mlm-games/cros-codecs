@@ -1178,7 +1178,8 @@ impl SpsBuilder {
         // important to set these before setting the restriction flag as max_num_order_frames
         // only produces the default values we need when that flag is false
         self.0.vui_parameters.max_num_reorder_frames = self.0.max_num_order_frames();
-        self.0.vui_parameters.max_dec_frame_buffering = self.0.vui_parameters.max_num_reorder_frames;
+        self.0.vui_parameters.max_dec_frame_buffering =
+            self.0.vui_parameters.max_num_reorder_frames;
         self.0.vui_parameters.bitstream_restriction_flag = true;
         // Set all restrictions to the defaults
         self.0.vui_parameters.motion_vectors_over_pic_boundaries_flag = true;

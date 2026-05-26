@@ -260,7 +260,10 @@ impl From<Fourcc> for DecodedFormat {
             "I412" => DecodedFormat::I412,
             "MM21" => DecodedFormat::MM21,
             _ => {
-                log::warn!("Fourcc {} not supported for decoded format, defaulting to I420", fourcc);
+                log::warn!(
+                    "Fourcc {} not supported for decoded format, defaulting to I420",
+                    fourcc
+                );
                 DecodedFormat::I420
             }
         }
@@ -324,7 +327,10 @@ impl From<Fourcc> for EncodedFormat {
             #[cfg(feature = "av1")]
             "AV1F" => EncodedFormat::AV1,
             _ => {
-                log::warn!("Fourcc {} not supported for encoded format, defaulting to H264", fourcc);
+                log::warn!(
+                    "Fourcc {} not supported for encoded format, defaulting to H264",
+                    fourcc
+                );
                 EncodedFormat::H264
             }
         }

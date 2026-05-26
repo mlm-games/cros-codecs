@@ -105,7 +105,10 @@ where
     fn init_converting(
         mut backend: B,
         input_fourcc: Fourcc,
-    ) -> Result<(C2Decoder<V>, Option<FramePool<GbmVideoFrame>>, Option<FramePool<V4l2MmapVideoFrame>>), String> {
+    ) -> Result<
+        (C2Decoder<V>, Option<FramePool<GbmVideoFrame>>, Option<FramePool<V4l2MmapVideoFrame>>),
+        String,
+    > {
         let _ = backend;
         #[cfg(feature = "gbm")]
         {
@@ -283,17 +286,18 @@ where
     ) -> Result<Self, String> {
         let mut backend = B::new(options)?;
         let backend_fourccs = backend.supported_output_formats();
-        let (decoder, auxiliary_frame_pool_gbm, auxiliary_frame_pool_v4l2) = if backend_fourccs.contains(&output_fourcc) {
-            (
-                C2Decoder::ImportingDecoder(
-                    backend.get_decoder(EncodedFormat::from(input_fourcc))?,
-                ),
-                None,
-                None,
-            )
-        } else {
-            Self::init_converting(backend, input_fourcc)?
-        };
+        let (decoder, auxiliary_frame_pool_gbm, auxiliary_frame_pool_v4l2) =
+            if backend_fourccs.contains(&output_fourcc) {
+                (
+                    C2Decoder::ImportingDecoder(
+                        backend.get_decoder(EncodedFormat::from(input_fourcc))?,
+                    ),
+                    None,
+                    None,
+                )
+            } else {
+                Self::init_converting(backend, input_fourcc)?
+            };
         Ok(Self {
             decoder,
             epoll_fd: Epoll::new(EpollCreateFlags::empty())

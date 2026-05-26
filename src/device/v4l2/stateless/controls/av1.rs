@@ -96,11 +96,11 @@ use crate::codec::av1::parser::GlobalMotionParams;
 use crate::codec::av1::parser::LoopFilterParams;
 use crate::codec::av1::parser::LoopRestorationParams;
 use crate::codec::av1::parser::QuantizationParams;
-use crate::codec::av1::parser::NUM_REF_FRAMES;
-use crate::codec::av1::parser::REFS_PER_FRAME;
 use crate::codec::av1::parser::SegmentationParams;
 use crate::codec::av1::parser::SequenceHeaderObu;
 use crate::codec::av1::parser::Tile;
+use crate::codec::av1::parser::NUM_REF_FRAMES;
+use crate::codec::av1::parser::REFS_PER_FRAME;
 
 // v4l2r does not have V4L2_AV1_SEG_LVL_MAX
 //use v4l2r::bindings::V4L2_AV1_SEG_LVL_MAX;

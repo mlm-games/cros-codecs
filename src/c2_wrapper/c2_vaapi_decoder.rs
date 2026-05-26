@@ -37,9 +37,7 @@ impl C2DecoderBackend for C2VaapiDecoder {
                 libva::Display::open_drm_display(libva_device_path.clone())
                     .map_err(|_| format!("failed to open libva display {libva_device_path:?}"))?,
             ),
-            None => Arc::new(
-                libva::Display::open().ok_or("failed to open libva display")?,
-            ),
+            None => Arc::new(libva::Display::open().ok_or("failed to open libva display")?),
         };
 
         Ok(Self { display })

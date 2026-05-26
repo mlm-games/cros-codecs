@@ -145,8 +145,10 @@ where
         let coded_resolution;
         #[cfg(feature = "vaapi")]
         {
-            let (enc, vis, cod) = backend
-                .get_encoder_vaapi(DecodedFormat::from(input_fourcc), EncodedFormat::from(output_fourcc))?;
+            let (enc, vis, cod) = backend.get_encoder_vaapi(
+                DecodedFormat::from(input_fourcc),
+                EncodedFormat::from(output_fourcc),
+            )?;
             visible_resolution = vis;
             coded_resolution = cod;
             (*framepool_hint_cb.lock().unwrap())(StreamInfo {
@@ -173,8 +175,10 @@ where
         }
         #[cfg(feature = "v4l2")]
         {
-            let (enc, vis, cod) = backend
-                .get_encoder_v4l2(DecodedFormat::from(input_fourcc), EncodedFormat::from(output_fourcc))?;
+            let (enc, vis, cod) = backend.get_encoder_v4l2(
+                DecodedFormat::from(input_fourcc),
+                EncodedFormat::from(output_fourcc),
+            )?;
             visible_resolution = vis;
             coded_resolution = cod;
             (*framepool_hint_cb.lock().unwrap())(StreamInfo {
@@ -293,9 +297,11 @@ where
                     self.current_tunings.rate_control = RateControl::ConstantBitrate(job.bitrate);
                     self.current_tunings.framerate = new_framerate;
                     #[cfg(feature = "vaapi")]
-                    let tune_result = self.encoder_vaapi.as_mut().unwrap().tune(self.current_tunings.clone());
+                    let tune_result =
+                        self.encoder_vaapi.as_mut().unwrap().tune(self.current_tunings.clone());
                     #[cfg(feature = "v4l2")]
-                    let tune_result = self.encoder_v4l2.as_mut().unwrap().tune(self.current_tunings.clone());
+                    let tune_result =
+                        self.encoder_v4l2.as_mut().unwrap().tune(self.current_tunings.clone());
                     if let Err(err) = tune_result {
                         log::debug!("Error adjusting tunings! {:?}", err);
                         *self.state.lock().unwrap() = C2State::C2Error;
@@ -313,7 +319,8 @@ where
                 #[cfg(feature = "vaapi")]
                 let encode_result = self.encoder_vaapi.as_mut().unwrap().encode(meta, frame);
                 #[cfg(feature = "v4l2")]
-                let encode_result = self.encoder_v4l2.as_mut().unwrap().encode(meta, V4l2VideoFrame(frame));
+                let encode_result =
+                    self.encoder_v4l2.as_mut().unwrap().encode(meta, V4l2VideoFrame(frame));
                 match encode_result {
                     Ok(_) => self.in_flight_queue.push_back(job),
                     Err(err) => {

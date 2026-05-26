@@ -328,7 +328,10 @@ where
             return C2Status::C2BadState;
         }
 
-        self.work_queue.lock().expect("C2 work_queue mutex poisoned").extend(work_items.into_iter());
+        self.work_queue
+            .lock()
+            .expect("C2 work_queue mutex poisoned")
+            .extend(work_items.into_iter());
 
         if let Err(e) = self.awaiting_job_event.write(1) {
             log::error!("failed to write awaiting_job_event during queue: {:#}", e);
@@ -346,7 +349,12 @@ where
             return C2Status::C2BadState;
         }
 
-        let mut tmp = self.work_queue.lock().expect("C2 work_queue mutex poisoned").drain(..).collect::<Vec<J>>();
+        let mut tmp = self
+            .work_queue
+            .lock()
+            .expect("C2 work_queue mutex poisoned")
+            .drain(..)
+            .collect::<Vec<J>>();
         flushed_work.append(&mut tmp);
 
         C2Status::C2Ok

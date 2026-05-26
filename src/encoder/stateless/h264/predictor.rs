@@ -116,10 +116,8 @@ impl<Picture, Reference> LowDelayH264<Picture, Reference> {
         // Use CABAC for better compression (not supported in Baseline profile)
         let use_cabac = config.profile != Profile::Baseline;
         // 8x8 transform improves compression (High profile and above)
-        let use_8x8_transform = matches!(
-            config.profile,
-            Profile::High | Profile::High10 | Profile::High422P
-        );
+        let use_8x8_transform =
+            matches!(config.profile, Profile::High | Profile::High10 | Profile::High422P);
 
         let pps = PpsBuilder::new(Rc::clone(&sps))
             .pic_parameter_set_id(0)
