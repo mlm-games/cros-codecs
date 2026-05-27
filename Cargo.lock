@@ -192,15 +192,15 @@ dependencies = [
  "log",
  "nix",
  "serde_json",
- "thiserror 1.0.69",
+ "thiserror 2.0.18",
  "v4l2r",
  "zerocopy",
 ]
 
 [[package]]
 name = "cros-libva"
-version = "0.0.13"
-source = "git+https://github.com/mlm-games/cros-libva.git#ba36b968231402071b2e344d4dad5974040a74a2"
+version = "0.0.20"
+source = "git+https://github.com/mlm-games/cros-libva.git?branch=main#4ee59b31f58c3a12304a700669f8f7ec78bd6d77"
 dependencies = [
  "bindgen 0.72.1",
  "bitflags",
@@ -413,9 +413,9 @@ checksum = "616ec5685824bcc94416c6d4a7a446eea774a31efd7062c8480ba6fd06d7a6e5"
 
 [[package]]
 name = "memchr"
-version = "2.8.0"
+version = "2.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f8ca58f447f06ed17d5fc4043ce1b10dd205e060fb3ce5b979b8ed8e59ff3f79"
+checksum = "6b947ae49db0d222b1dbc6b113ce7248a3fc3a6ca21b696717bfc000ba4484d8"
 
 [[package]]
 name = "minimal-lexical"
