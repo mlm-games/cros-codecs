@@ -81,12 +81,12 @@ impl<'a> Reader<'a> {
             usize::try_from(w).map_err(|_| String::from("Invalid num_bits"))? - 1,
         )?;
 
-        if v < m.into() {
+        if v < m {
             return Ok(v);
         }
 
         let extra_bit = self.0.read_bit()?;
-        Ok((v << 1) - u32::from(m) + u32::from(extra_bit))
+        Ok((v << 1) - m + u32::from(extra_bit))
     }
 
     /// Implements 5.9.13: Delta quantizer syntax.

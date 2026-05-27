@@ -40,7 +40,7 @@ impl fmt::Display for SynthesizerError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             SynthesizerError::Unsupported => write!(f, "tried to synthesize unsupported settings"),
-            SynthesizerError::NaluWriter(x) => write!(f, "{}", x.to_string()),
+            SynthesizerError::NaluWriter(x) => write!(f, "{}", x),
         }
     }
 }

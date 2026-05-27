@@ -452,7 +452,7 @@ impl fmt::Display for BitWriterError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             BitWriterError::InvalidBitCount => write!(f, "invalid bit count"),
-            BitWriterError::Io(x) => write!(f, "{}", x.to_string()),
+            BitWriterError::Io(x) => write!(f, "{}", x),
         }
     }
 }

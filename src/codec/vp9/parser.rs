@@ -1145,7 +1145,7 @@ impl Parser {
             }
         }
 
-        hdr.uncompressed_header_size_in_bytes = (r.position() as u16 + 7) / 8;
+        hdr.uncompressed_header_size_in_bytes = (r.position() as u16).div_ceil(8);
 
         Ok(hdr)
     }

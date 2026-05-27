@@ -91,11 +91,11 @@ impl Resolution {
     pub fn round(mut self, rnd_mode: ResolutionRoundMode) -> Self {
         match rnd_mode {
             ResolutionRoundMode::Even => {
-                if self.width % 2 != 0 {
+                if !self.width.is_multiple_of(2) {
                     self.width += 1;
                 }
 
-                if self.height % 2 != 0 {
+                if !self.height.is_multiple_of(2) {
                     self.height += 1;
                 }
             }
@@ -425,14 +425,14 @@ pub fn decoded_frame_size(format: DecodedFormat, width: usize, height: usize) ->
         DecodedFormat::I420 | DecodedFormat::NV12 => {
             let u_size = width * height;
             // U and V planes need to be aligned to 2.
-            let uv_size = ((width + 1) / 2) * ((height + 1) / 2) * 2;
+            let uv_size = width.div_ceil(2) * height.div_ceil(2) * 2;
 
             u_size + uv_size
         }
         DecodedFormat::I422 => {
             let u_size = width * height;
             // U and V planes need to be aligned to 2.
-            let uv_size = ((width + 1) / 2) * ((height + 1) / 2) * 2 * 2;
+            let uv_size = width.div_ceil(2) * height.div_ceil(2) * 2 * 2;
 
             u_size + uv_size
         }
@@ -443,7 +443,7 @@ pub fn decoded_frame_size(format: DecodedFormat, width: usize, height: usize) ->
         DecodedFormat::I210 | DecodedFormat::I212 => {
             let u_size = width * height * 2;
             // U and V planes need to be aligned to 2.
-            let uv_size = ((width + 1) / 2) * ((height + 1) / 2) * 2 * 2;
+            let uv_size = width.div_ceil(2) * height.div_ceil(2) * 2 * 2;
 
             u_size + uv_size
         }

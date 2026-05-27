@@ -69,9 +69,9 @@ impl fmt::Display for SynthesizerError {
             SynthesizerError::InvalidSyntaxElementValue(x) => {
                 write!(f, "invalid syntax element for value {}", x)
             }
-            SynthesizerError::ConversionError(x) => write!(f, "{}", x.to_string()),
-            SynthesizerError::ObuWriter(x) => write!(f, "{}", x.to_string()),
-            SynthesizerError::Io(x) => write!(f, "{}", x.to_string()),
+            SynthesizerError::ConversionError(x) => write!(f, "{}", x),
+            SynthesizerError::ObuWriter(x) => write!(f, "{}", x),
+            SynthesizerError::Io(x) => write!(f, "{}", x),
         }
     }
 }

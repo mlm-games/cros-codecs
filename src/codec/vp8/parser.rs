@@ -256,7 +256,7 @@ impl Header {
         let mut reader = BitReader::new(bitstream, false);
 
         let frame_tag =
-            reader.read_le::<u32>(3).map_err(|err| ParseUncompressedChunkError::IoError(err))?;
+            reader.read_le::<u32>(3).map_err(ParseUncompressedChunkError::IoError)?;
 
         let mut header = Header {
             key_frame: (frame_tag & 0x1) == 0,
@@ -269,7 +269,7 @@ impl Header {
         if header.key_frame {
             let start_code = reader
                 .read_le::<u32>(3)
-                .map_err(|err| ParseUncompressedChunkError::IoError(err))?;
+                .map_err(ParseUncompressedChunkError::IoError)?;
 
             if start_code != 0x2a019d {
                 return Err(ParseUncompressedChunkError::InvalidStartCode(start_code));
@@ -277,18 +277,18 @@ impl Header {
 
             let size_code = reader
                 .read_le::<u16>(2)
-                .map_err(|err| ParseUncompressedChunkError::IoError(err))?;
+                .map_err(ParseUncompressedChunkError::IoError)?;
             header.horiz_scale_code = (size_code >> 14) as u8;
             header.width = size_code & 0x3fff;
 
             let size_code = reader
                 .read_le::<u16>(2)
-                .map_err(|err| ParseUncompressedChunkError::IoError(err))?;
+                .map_err(ParseUncompressedChunkError::IoError)?;
             header.vert_scale_code = (size_code >> 14) as u8;
             header.height = size_code & 0x3fff;
         }
 
-        if reader.position() % 8 != 0 {
+        if !reader.position().is_multiple_of(8) {
             Err(ParseUncompressedChunkError::IoError("Misaligned VP8 header".into()))
         } else {
             header.data_chunk_size = (reader.position() / 8) as u8;

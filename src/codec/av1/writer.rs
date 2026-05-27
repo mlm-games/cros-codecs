@@ -17,7 +17,7 @@ pub enum ObuWriterError {
 impl fmt::Display for ObuWriterError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            ObuWriterError::BitWriterError(x) => write!(f, "{}", x.to_string()),
+            ObuWriterError::BitWriterError(x) => write!(f, "{}", x),
             ObuWriterError::UnalignedLeb128 => {
                 write!(f, "attempted to write leb128 on unaligned position")
             }

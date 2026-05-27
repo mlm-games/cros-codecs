@@ -248,7 +248,7 @@ impl Header for NaluHeader {
         let mut data = [0u8; 2];
         cursor.read_exact(&mut data).map_err(|_| String::from("Broken Data"))?;
         let mut r = BitReader::new(&data, false);
-        let _ = cursor.seek(SeekFrom::Current(-1 * data.len() as i64));
+        let _ = cursor.seek(SeekFrom::Current(-(data.len() as i64)));
 
         // Skip forbidden_zero_bit
         r.skip_bits(1)?;
@@ -1484,8 +1484,10 @@ impl Default for ShortTermRefPicSet {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 /// See table 7-7 in the specification.
+#[derive(Default)]
 pub enum SliceType {
     B = 0,
+    #[default]
     P = 1,
     I = 2,
 }
@@ -1520,11 +1522,6 @@ impl SliceType {
     }
 }
 
-impl Default for SliceType {
-    fn default() -> Self {
-        Self::P
-    }
-}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SliceHeader {

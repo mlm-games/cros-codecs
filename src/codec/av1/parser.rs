@@ -1740,7 +1740,7 @@ impl Parser {
         // We can't have that in parse_obu as per the spec, because the reader
         // is not initialized on our design at that point, so move the check to
         // inside this function.
-        if obu.data.len() == 0
+        if obu.data.is_empty()
             || matches!(
                 obu.header.obu_type,
                 ObuType::TileList | ObuType::TileGroup | ObuType::Frame
@@ -1843,7 +1843,7 @@ impl Parser {
             annexb_state.frame_unit_consumed += u32::try_from(obu_size).unwrap();
         }
 
-        assert!(reader.0.position() % 8 == 0);
+        assert!(reader.0.position().is_multiple_of(8));
         let start_offset: usize = (reader.0.position() / 8).try_into().unwrap();
 
         log::debug!(
@@ -3135,9 +3135,7 @@ impl Parser {
             let temp_grain_seed = fg.grain_seed;
 
             if !fh
-                .ref_frame_idx
-                .iter()
-                .any(|&ref_frame_idx| ref_frame_idx == fg.film_grain_params_ref_idx)
+                .ref_frame_idx.contains(&fg.film_grain_params_ref_idx)
             {
                 return Err("Invalid film_grain_params_ref_idx".into());
             }
@@ -3775,7 +3773,7 @@ impl Parser {
 
         let mut r = Reader::new(tg.obu.as_ref());
 
-        if r.0.num_bits_left() % 8 != 0 {
+        if !r.0.num_bits_left().is_multiple_of(8) {
             return Err("Bitstream is not byte aligned".into());
         }
 
@@ -3880,7 +3878,6 @@ impl Parser {
             Ok(self
                 .last_frame_header
                 .clone()
-                .take()
                 .ok_or::<String>("Broken stream: no previous frame header to copy".into())?)
         } else {
             self.seen_frame_header = true;

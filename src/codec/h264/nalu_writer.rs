@@ -96,8 +96,8 @@ impl fmt::Display for NaluWriterError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             NaluWriterError::Overflow => write!(f, "value increment caused value overflow"),
-            NaluWriterError::Io(x) => write!(f, "{}", x.to_string()),
-            NaluWriterError::BitWriterError(x) => write!(f, "{}", x.to_string()),
+            NaluWriterError::Io(x) => write!(f, "{}", x),
+            NaluWriterError::BitWriterError(x) => write!(f, "{}", x),
         }
     }
 }
@@ -173,7 +173,7 @@ impl<W: Write> NaluWriter<W> {
     /// Writes a H.264 NALU header.
     pub fn write_header(&mut self, idc: u8, _type: u8) -> NaluWriterResult<()> {
         self.0.flush()?;
-        let _num_bytes = self.0.inner_mut().write_header(idc, _type)?;
+        self.0.inner_mut().write_header(idc, _type)?;
         // self.0.bits_written += num_bytes * 8;
         Ok(())
     }

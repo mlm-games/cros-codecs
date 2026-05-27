@@ -481,7 +481,9 @@ pub struct Slice<'a> {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 /// See table 7-6 in the specification.
+#[derive(Default)]
 pub enum SliceType {
+    #[default]
     P = 0,
     B = 1,
     I = 2,
@@ -531,11 +533,6 @@ impl SliceType {
     }
 }
 
-impl Default for SliceType {
-    fn default() -> Self {
-        Self::P
-    }
-}
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
@@ -1048,8 +1045,8 @@ impl SpsBuilder {
     pub fn resolution(mut self, width: u32, height: u32) -> Self {
         const MB_SIZE: u32 = 16;
 
-        let mb_width = (width + MB_SIZE - 1) / MB_SIZE;
-        let mb_height = (height + MB_SIZE - 1) / MB_SIZE;
+        let mb_width = width.div_ceil(MB_SIZE);
+        let mb_height = height.div_ceil(MB_SIZE);
 
         self.0.pic_width_in_mbs_minus1 = (mb_width - 1) as u16;
         self.0.pic_height_in_map_units_minus1 = (mb_height - 1) as u16;
@@ -1724,7 +1721,7 @@ impl Parser {
 
     fn fill_default_scaling_list_8x8(scaling_list8x8: &mut [u8; 64], i: usize) {
         assert!(i < 6);
-        if i % 2 == 0 {
+        if i.is_multiple_of(2) {
             *scaling_list8x8 = DEFAULT_8X8_INTRA;
         } else {
             *scaling_list8x8 = DEFAULT_8X8_INTER;
@@ -2665,7 +2662,7 @@ impl Header for NaluHeader {
         let mut byte_buf = [0u8; 1];
         cursor.read_exact(&mut byte_buf).map_err(|_| String::from("Broken Data"))?;
         let byte = byte_buf[0];
-        let _ = cursor.seek(SeekFrom::Current(-1 * byte_buf.len() as i64));
+        let _ = cursor.seek(SeekFrom::Current(-(byte_buf.len() as i64)));
 
         let type_ = NaluType::try_from(byte & 0x1f)?;
 

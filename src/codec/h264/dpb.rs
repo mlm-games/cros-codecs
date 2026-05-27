@@ -191,7 +191,9 @@ impl<T: Clone> Dpb<T> {
     /// Find the short term reference picture with the lowest `frame_num_wrap`
     /// value.
     pub fn find_short_term_lowest_frame_num_wrap(&self) -> Option<&DpbEntry<T>> {
-        let lowest = self
+        
+
+        self
             .entries
             .iter()
             .filter(|h| {
@@ -201,9 +203,7 @@ impl<T: Clone> Dpb<T> {
             .min_by_key(|h| {
                 let p = h.pic.borrow();
                 p.frame_num_wrap
-            });
-
-        lowest
+            })
     }
 
     /// Mark all pictures in the DPB as unused for reference.
@@ -506,12 +506,11 @@ impl<T: Clone> Dpb<T> {
         // field has been marked as "used for short-term reference", the current
         // picture and the complementary reference field pair are also marked as
         // "used for short-term reference".
-        if let FieldRank::Second(other_field) = pic.field_rank() {
-            if matches!(other_field.borrow().reference(), Reference::ShortTerm) {
+        if let FieldRank::Second(other_field) = pic.field_rank()
+            && matches!(other_field.borrow().reference(), Reference::ShortTerm) {
                 pic.set_reference(Reference::ShortTerm, false);
                 return;
             }
-        }
 
         let mut num_ref_pics = self.num_ref_frames();
         let max_num_ref_frames = std::cmp::max(1, sps.max_num_ref_frames as usize);
@@ -926,7 +925,7 @@ impl<T: Clone> Dpb<T> {
 
     /// 8.2.4.2.1 Initialization process for the reference picture list for P
     /// and SP slices in frames
-    fn build_ref_pic_list_p(&self) -> DpbPicRefList<T> {
+    fn build_ref_pic_list_p(&self) -> DpbPicRefList<'_, T> {
         let mut ref_pic_list_p0: Vec<_> =
             self.short_term_refs_iter().filter(|h| !h.pic.borrow().is_second_field()).collect();
 
@@ -946,7 +945,7 @@ impl<T: Clone> Dpb<T> {
 
     /// 8.2.4.2.2 Initialization process for the reference picture list for P
     /// and SP slices in fields
-    fn build_ref_field_pic_list_p(&self, cur_pic: &PictureData) -> DpbPicRefList<T> {
+    fn build_ref_field_pic_list_p(&self, cur_pic: &PictureData) -> DpbPicRefList<'_, T> {
         let mut ref_pic_list_p0 = vec![];
 
         let mut ref_frame_list_0_short_term: Vec<_> = self.short_term_refs_iter().collect();
@@ -977,7 +976,7 @@ impl<T: Clone> Dpb<T> {
 
     // 8.2.4.2.3 Initialization process for reference picture lists for B slices
     // in frames
-    fn build_ref_pic_list_b(&self, cur_pic: &PictureData) -> (DpbPicRefList<T>, DpbPicRefList<T>) {
+    fn build_ref_pic_list_b(&self, cur_pic: &PictureData) -> (DpbPicRefList<'_, T>, DpbPicRefList<'_, T>) {
         let mut short_term_refs: Vec<_> =
             self.short_term_refs_iter().filter(|h| !h.pic.borrow().is_second_field()).collect();
 
@@ -1057,7 +1056,7 @@ impl<T: Clone> Dpb<T> {
     fn build_ref_field_pic_list_b(
         &self,
         cur_pic: &PictureData,
-    ) -> (DpbPicRefList<T>, DpbPicRefList<T>) {
+    ) -> (DpbPicRefList<'_, T>, DpbPicRefList<'_, T>) {
         let mut ref_pic_list_b0 = vec![];
         let mut ref_pic_list_b1 = vec![];
         let mut ref_frame_list_0_short_term = vec![];
