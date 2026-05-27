@@ -4,24 +4,24 @@
 
 use std::rc::Rc;
 
+use crate::BlockingMode;
 use crate::codec::av1::parser::FrameHeaderObu;
+use crate::codec::av1::parser::REFS_PER_FRAME;
 use crate::codec::av1::parser::ReferenceFrameType;
 use crate::codec::av1::parser::SequenceHeaderObu;
-use crate::codec::av1::parser::REFS_PER_FRAME;
-use crate::encoder::av1::EncoderConfig;
+use crate::encoder::EncodeResult;
+use crate::encoder::FrameMetadata;
+use crate::encoder::PredictionStructure;
+use crate::encoder::Tunings;
 use crate::encoder::av1::AV1;
-use crate::encoder::stateless::av1::predictor::{EncoderFeaturesAV1, LowDelayAV1};
+use crate::encoder::av1::EncoderConfig;
 use crate::encoder::stateless::BitstreamPromise;
 use crate::encoder::stateless::Predictor;
 use crate::encoder::stateless::StatelessBackendResult;
 use crate::encoder::stateless::StatelessCodec;
 use crate::encoder::stateless::StatelessEncoderExecute;
 use crate::encoder::stateless::StatelessVideoEncoderBackend;
-use crate::encoder::EncodeResult;
-use crate::encoder::FrameMetadata;
-use crate::encoder::PredictionStructure;
-use crate::encoder::Tunings;
-use crate::BlockingMode;
+use crate::encoder::stateless::av1::predictor::{EncoderFeaturesAV1, LowDelayAV1};
 
 mod predictor;
 

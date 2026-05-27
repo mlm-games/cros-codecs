@@ -10,13 +10,13 @@ use std::sync::Arc;
 use crate::backend::dummy::decoder::Backend;
 use crate::backend::dummy::decoder::DummyFrame;
 use crate::backend::dummy::decoder::Handle;
-use crate::decoder::stateless::h265::H265;
+use crate::decoder::BlockingMode;
 use crate::decoder::stateless::NewStatelessDecoderError;
 use crate::decoder::stateless::StatelessDecoder;
-use crate::decoder::BlockingMode;
+use crate::decoder::stateless::h265::H265;
 
-use crate::decoder::stateless::h265::StatelessH265DecoderBackend;
 use crate::Resolution;
+use crate::decoder::stateless::h265::StatelessH265DecoderBackend;
 
 impl StatelessH265DecoderBackend for Backend {
     fn new_sequence(

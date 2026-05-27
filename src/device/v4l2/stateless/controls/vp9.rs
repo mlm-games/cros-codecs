@@ -4,9 +4,6 @@
 
 use std::marker::PhantomData;
 
-use v4l2r::bindings::v4l2_ctrl_vp9_frame;
-use v4l2r::bindings::v4l2_ext_control;
-use v4l2r::bindings::v4l2_ext_control__bindgen_ty_1;
 use v4l2r::bindings::V4L2_CID_STATELESS_VP9_FRAME;
 use v4l2r::bindings::V4L2_VP9_FRAME_FLAG_ALLOW_HIGH_PREC_MV;
 use v4l2r::bindings::V4L2_VP9_FRAME_FLAG_COLOR_RANGE_FULL_SWING;
@@ -26,6 +23,9 @@ use v4l2r::bindings::V4L2_VP9_SEGMENTATION_FLAG_ENABLED;
 use v4l2r::bindings::V4L2_VP9_SEGMENTATION_FLAG_TEMPORAL_UPDATE;
 use v4l2r::bindings::V4L2_VP9_SEGMENTATION_FLAG_UPDATE_DATA;
 use v4l2r::bindings::V4L2_VP9_SEGMENTATION_FLAG_UPDATE_MAP;
+use v4l2r::bindings::v4l2_ctrl_vp9_frame;
+use v4l2r::bindings::v4l2_ext_control;
+use v4l2r::bindings::v4l2_ext_control__bindgen_ty_1;
 use v4l2r::controls::AsV4l2ControlSlice;
 
 use crate::codec::vp9::parser::ColorRange;

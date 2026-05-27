@@ -7,23 +7,23 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use std::sync::Weak;
 
+use crate::Fourcc;
+use crate::Resolution;
 use crate::decoder::StreamInfo;
 use crate::video_frame::ReadMapping;
 use crate::video_frame::VideoFrame;
 use crate::video_frame::WriteMapping;
-use crate::Fourcc;
-use crate::Resolution;
 
 #[cfg(feature = "v4l2")]
 use crate::v4l2r::device::Device;
 #[cfg(feature = "vaapi")]
 use libva::Display;
 #[cfg(feature = "v4l2")]
+use v4l2r::Format;
+#[cfg(feature = "v4l2")]
 use v4l2r::bindings::v4l2_plane;
 #[cfg(feature = "v4l2")]
 use v4l2r::ioctl::V4l2Buffer;
-#[cfg(feature = "v4l2")]
-use v4l2r::Format;
 
 #[derive(Debug)]
 pub struct PooledVideoFrame<V: VideoFrame> {

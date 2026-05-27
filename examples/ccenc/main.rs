@@ -7,14 +7,22 @@ use std::io::ErrorKind;
 use std::io::Read;
 use std::io::Write;
 use std::path::PathBuf;
-use std::sync::atomic::AtomicU32;
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::sync::atomic::AtomicU32;
 use std::thread;
 use std::time::Duration;
 
+use cros_codecs::DecodedFormat;
+use cros_codecs::Fourcc;
+use cros_codecs::Resolution;
 use cros_codecs::bitstream_utils::IvfFileHeader;
 use cros_codecs::bitstream_utils::IvfFrameHeader;
+use cros_codecs::c2_wrapper::C2EncodeJob;
+use cros_codecs::c2_wrapper::C2Status;
+use cros_codecs::c2_wrapper::C2Worker;
+use cros_codecs::c2_wrapper::C2Wrapper;
+use cros_codecs::c2_wrapper::DrainMode;
 use cros_codecs::c2_wrapper::c2_encoder::C2EncoderWorker;
 #[cfg(feature = "v4l2")]
 use cros_codecs::c2_wrapper::c2_v4l2_encoder::C2V4L2Encoder;
@@ -24,26 +32,18 @@ use cros_codecs::c2_wrapper::c2_v4l2_encoder::C2V4L2EncoderOptions;
 use cros_codecs::c2_wrapper::c2_vaapi_encoder::C2VaapiEncoder;
 #[cfg(feature = "vaapi")]
 use cros_codecs::c2_wrapper::c2_vaapi_encoder::C2VaapiEncoderOptions;
-use cros_codecs::c2_wrapper::C2EncodeJob;
-use cros_codecs::c2_wrapper::C2Status;
-use cros_codecs::c2_wrapper::C2Worker;
-use cros_codecs::c2_wrapper::C2Wrapper;
-use cros_codecs::c2_wrapper::DrainMode;
 use cros_codecs::decoder::StreamInfo;
 use cros_codecs::image_processing::extend_border_nv12;
 use cros_codecs::image_processing::i420_to_nv12_chroma;
 use cros_codecs::image_processing::nv12_copy;
+use cros_codecs::video_frame::UV_PLANE;
+use cros_codecs::video_frame::VideoFrame;
+use cros_codecs::video_frame::Y_PLANE;
 use cros_codecs::video_frame::frame_pool::FramePool;
 use cros_codecs::video_frame::frame_pool::PooledVideoFrame;
 use cros_codecs::video_frame::gbm_video_frame::GbmDevice;
 use cros_codecs::video_frame::gbm_video_frame::GbmUsage;
 use cros_codecs::video_frame::generic_dma_video_frame::GenericDmaVideoFrame;
-use cros_codecs::video_frame::VideoFrame;
-use cros_codecs::video_frame::UV_PLANE;
-use cros_codecs::video_frame::Y_PLANE;
-use cros_codecs::DecodedFormat;
-use cros_codecs::Fourcc;
-use cros_codecs::Resolution;
 
 mod util;
 

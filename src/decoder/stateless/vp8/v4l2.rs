@@ -5,16 +5,19 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use crate::Fourcc;
+use crate::Rect;
+use crate::Resolution;
+use crate::backend::v4l2::decoder::ADDITIONAL_REFERENCE_FRAME_BUFFER;
+use crate::backend::v4l2::decoder::V4l2StreamInfo;
 use crate::backend::v4l2::decoder::stateless::V4l2Picture;
 use crate::backend::v4l2::decoder::stateless::V4l2StatelessDecoderBackend;
 use crate::backend::v4l2::decoder::stateless::V4l2StatelessDecoderHandle;
-use crate::backend::v4l2::decoder::V4l2StreamInfo;
-use crate::backend::v4l2::decoder::ADDITIONAL_REFERENCE_FRAME_BUFFER;
 use crate::codec::vp8::parser::Header;
 use crate::codec::vp8::parser::MbLfAdjustments;
 use crate::codec::vp8::parser::Segmentation;
-use crate::decoder::stateless::vp8::StatelessVp8DecoderBackend;
-use crate::decoder::stateless::vp8::Vp8;
+use crate::decoder::BlockingMode;
+use crate::decoder::DecodedHandle;
 use crate::decoder::stateless::NewPictureError;
 use crate::decoder::stateless::NewPictureResult;
 use crate::decoder::stateless::NewStatelessDecoderError;
@@ -22,13 +25,10 @@ use crate::decoder::stateless::StatelessBackendResult;
 use crate::decoder::stateless::StatelessDecoder;
 use crate::decoder::stateless::StatelessDecoderBackend;
 use crate::decoder::stateless::StatelessDecoderBackendPicture;
-use crate::decoder::BlockingMode;
-use crate::decoder::DecodedHandle;
+use crate::decoder::stateless::vp8::StatelessVp8DecoderBackend;
+use crate::decoder::stateless::vp8::Vp8;
 use crate::device::v4l2::stateless::controls::vp8::V4l2CtrlVp8FrameParams;
 use crate::video_frame::VideoFrame;
-use crate::Fourcc;
-use crate::Rect;
-use crate::Resolution;
 
 const NUM_REF_FRAMES: usize = 3;
 

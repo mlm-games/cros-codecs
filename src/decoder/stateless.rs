@@ -32,13 +32,13 @@ use nix::sys::epoll::EpollFlags;
 use nix::sys::eventfd::EventFd;
 use thiserror::Error;
 
+use crate::Resolution;
 use crate::decoder::BlockingMode;
 use crate::decoder::DecodedHandle;
 use crate::decoder::DecoderEvent;
 use crate::decoder::DynDecodedHandle;
 use crate::decoder::ReadyFramesQueue;
 use crate::decoder::StreamInfo;
-use crate::Resolution;
 
 /// Error returned by `new_picture` methods of the backend, usually to indicate which kind of
 /// resource is needed before the picture can be successfully created.
@@ -436,8 +436,8 @@ where
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use crate::decoder::stateless::StatelessVideoDecoder;
     use crate::decoder::DecodedHandle;
+    use crate::decoder::stateless::StatelessVideoDecoder;
 
     /// Stream that can be used in tests, along with the CRC32 of all of its frames.
     pub struct TestStream {

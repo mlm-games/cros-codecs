@@ -6,6 +6,10 @@ use std::io::Write;
 
 use crate::codec::h264::nalu_writer::NaluWriter;
 use crate::codec::h264::nalu_writer::NaluWriterError;
+use crate::codec::h264::parser::DEFAULT_4X4_INTER;
+use crate::codec::h264::parser::DEFAULT_4X4_INTRA;
+use crate::codec::h264::parser::DEFAULT_8X8_INTER;
+use crate::codec::h264::parser::DEFAULT_8X8_INTRA;
 use crate::codec::h264::parser::HrdParams;
 use crate::codec::h264::parser::NaluType;
 use crate::codec::h264::parser::Pps;
@@ -13,10 +17,6 @@ use crate::codec::h264::parser::SliceHeader;
 #[cfg(feature = "vaapi")]
 use crate::codec::h264::parser::SliceType;
 use crate::codec::h264::parser::Sps;
-use crate::codec::h264::parser::DEFAULT_4X4_INTER;
-use crate::codec::h264::parser::DEFAULT_4X4_INTRA;
-use crate::codec::h264::parser::DEFAULT_8X8_INTER;
-use crate::codec::h264::parser::DEFAULT_8X8_INTRA;
 #[cfg(feature = "vaapi")]
 use crate::encoder::stateless::h264::IsReference;
 

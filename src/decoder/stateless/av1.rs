@@ -7,16 +7,19 @@ use std::os::fd::BorrowedFd;
 
 use anyhow::anyhow;
 
+use crate::Resolution;
 use crate::codec::av1::parser::FrameHeaderObu;
 use crate::codec::av1::parser::FrameObu;
 use crate::codec::av1::parser::FrameType;
+use crate::codec::av1::parser::NUM_REF_FRAMES;
 use crate::codec::av1::parser::ObuAction;
 use crate::codec::av1::parser::ObuType;
 use crate::codec::av1::parser::ParsedObu;
 use crate::codec::av1::parser::Parser;
 use crate::codec::av1::parser::StreamInfo;
 use crate::codec::av1::parser::TileGroupObu;
-use crate::codec::av1::parser::NUM_REF_FRAMES;
+use crate::decoder::BlockingMode;
+use crate::decoder::DecodedHandle;
 use crate::decoder::stateless::DecodeError;
 use crate::decoder::stateless::DecodingState;
 use crate::decoder::stateless::NewPictureResult;
@@ -26,9 +29,6 @@ use crate::decoder::stateless::StatelessDecoder;
 use crate::decoder::stateless::StatelessDecoderBackend;
 use crate::decoder::stateless::StatelessDecoderBackendPicture;
 use crate::decoder::stateless::StatelessVideoDecoder;
-use crate::decoder::BlockingMode;
-use crate::decoder::DecodedHandle;
-use crate::Resolution;
 
 #[cfg(test)]
 mod dummy;
@@ -206,12 +206,14 @@ where
         let picture = match self.codec.current_pic.as_mut() {
             Some(CurrentPicState::RegularFrame { backend_picture, .. }) => backend_picture,
             Some(CurrentPicState::ShowExistingFrame { .. }) => {
-                return Err(anyhow!("Broken stream: cannot decode a tile group for a frame with show_existing_frame set"));
+                return Err(anyhow!(
+                    "Broken stream: cannot decode a tile group for a frame with show_existing_frame set"
+                ));
             }
             None => {
                 return Err(anyhow!(
-                "Broken stream: cannot decode a tile group without first decoding a frame header"
-            ))
+                    "Broken stream: cannot decode a tile group without first decoding a frame header"
+                ));
             }
         };
 
@@ -390,8 +392,8 @@ where
                 {
                     if self.codec.current_pic.is_some() {
                         return Err(DecodeError::DecoderError(anyhow!(
-                                "broken stream: a picture is being decoded while a new sequence header is encountered"
-                            )));
+                            "broken stream: a picture is being decoded while a new sequence header is encountered"
+                        )));
                     }
 
                     /* make sure we sync *before* we clear any state in the backend */
@@ -515,15 +517,15 @@ where
 
 #[cfg(test)]
 pub mod tests {
+    use crate::DecodedFormat;
     use crate::bitstream_utils::IvfIterator;
-    use crate::decoder::stateless::av1::Av1;
-    use crate::decoder::stateless::tests::test_decode_stream;
-    use crate::decoder::stateless::tests::TestStream;
-    use crate::decoder::stateless::StatelessDecoder;
     use crate::decoder::BlockingMode;
+    use crate::decoder::stateless::StatelessDecoder;
+    use crate::decoder::stateless::av1::Av1;
+    use crate::decoder::stateless::tests::TestStream;
+    use crate::decoder::stateless::tests::test_decode_stream;
     use crate::utils::simple_playback_loop;
     use crate::utils::simple_playback_loop_owned_frames;
-    use crate::DecodedFormat;
 
     /// Run `test` using the dummy decoder, in both blocking and non-blocking modes.
     fn test_decoder_dummy(test: &TestStream, blocking_mode: BlockingMode) {

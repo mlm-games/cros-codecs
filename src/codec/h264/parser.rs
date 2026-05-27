@@ -398,11 +398,7 @@ impl SliceHeader {
     /// Returns the field that is coded by this header.
     pub fn field(&self) -> Field {
         if self.field_pic_flag {
-            if self.bottom_field_flag {
-                Field::Bottom
-            } else {
-                Field::Top
-            }
+            if self.bottom_field_flag { Field::Bottom } else { Field::Top }
         } else {
             Field::Frame
         }

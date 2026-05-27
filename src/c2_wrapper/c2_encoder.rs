@@ -12,11 +12,15 @@ use nix::sys::eventfd::EventFd;
 use std::collections::VecDeque;
 use std::marker::PhantomData;
 use std::os::fd::AsFd;
-use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::sync::atomic::Ordering;
 use std::time::Duration;
 
+use crate::DecodedFormat;
+use crate::EncodedFormat;
+use crate::Fourcc;
+use crate::Resolution;
 use crate::c2_wrapper::C2EncodeJob;
 use crate::c2_wrapper::C2State;
 use crate::c2_wrapper::C2Status;
@@ -33,15 +37,11 @@ use crate::encoder::Tunings;
 use crate::encoder::VideoEncoder;
 use crate::image_processing::convert_video_frame;
 use crate::image_processing::extend_border_nv12;
+use crate::video_frame::UV_PLANE;
 #[cfg(feature = "v4l2")]
 use crate::video_frame::V4l2VideoFrame;
 use crate::video_frame::VideoFrame;
-use crate::video_frame::UV_PLANE;
 use crate::video_frame::Y_PLANE;
-use crate::DecodedFormat;
-use crate::EncodedFormat;
-use crate::Fourcc;
-use crate::Resolution;
 
 pub trait C2EncoderBackend {
     type EncoderOptions: Clone + Send + 'static;

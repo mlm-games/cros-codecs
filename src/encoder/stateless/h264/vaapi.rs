@@ -27,43 +27,43 @@ use libva::Picture;
 use libva::PictureH264;
 use libva::Surface;
 use libva::SurfaceMemoryDescriptor;
-use libva::VAProfile;
 use libva::VA_INVALID_ID;
 use libva::VA_PICTURE_H264_LONG_TERM_REFERENCE;
 use libva::VA_PICTURE_H264_SHORT_TERM_REFERENCE;
+use libva::VAProfile;
 use log::info;
 use log::warn;
 
-use crate::backend::vaapi::encoder::tunings_to_libva_rc;
+use crate::BlockingMode;
+use crate::Fourcc;
+use crate::Resolution;
 use crate::backend::vaapi::encoder::CodedOutputPromise;
 use crate::backend::vaapi::encoder::Reconstructed;
 use crate::backend::vaapi::encoder::VaapiBackend;
+use crate::backend::vaapi::encoder::tunings_to_libva_rc;
 use crate::codec::h264::parser::Pps;
 use crate::codec::h264::parser::Profile;
 use crate::codec::h264::parser::SliceHeader;
 use crate::codec::h264::parser::Sps;
 use crate::codec::h264::synthesizer::Synthesizer;
 use crate::codec::h264::synthesizer::SynthesizerResult;
+use crate::encoder::EncodeResult;
+use crate::encoder::RateControl;
 use crate::encoder::h264::EncoderConfig;
 use crate::encoder::h264::H264;
-use crate::encoder::stateless::h264::predictor::MAX_QP;
-use crate::encoder::stateless::h264::predictor::MIN_QP;
+use crate::encoder::stateless::ReadyPromise;
+use crate::encoder::stateless::StatelessBackendError;
+use crate::encoder::stateless::StatelessBackendResult;
+use crate::encoder::stateless::StatelessVideoEncoderBackend;
 use crate::encoder::stateless::h264::BackendRequest;
 use crate::encoder::stateless::h264::DpbEntry;
 use crate::encoder::stateless::h264::DpbEntryMeta;
 use crate::encoder::stateless::h264::IsReference;
 use crate::encoder::stateless::h264::StatelessEncoder;
 use crate::encoder::stateless::h264::StatelessH264EncoderBackend;
-use crate::encoder::stateless::ReadyPromise;
-use crate::encoder::stateless::StatelessBackendError;
-use crate::encoder::stateless::StatelessBackendResult;
-use crate::encoder::stateless::StatelessVideoEncoderBackend;
-use crate::encoder::EncodeResult;
-use crate::encoder::RateControl;
+use crate::encoder::stateless::h264::predictor::MAX_QP;
+use crate::encoder::stateless::h264::predictor::MIN_QP;
 use crate::video_frame::VideoFrame;
-use crate::BlockingMode;
-use crate::Fourcc;
-use crate::Resolution;
 
 type Request<'l, H> = BackendRequest<H, Reconstructed>;
 
@@ -490,7 +490,9 @@ where
                 ))
             } else {
                 if supports_sps != supports_pps {
-                    warn!("Hardware supports only one of packed SPS/PPS headers, not using packed headers");
+                    warn!(
+                        "Hardware supports only one of packed SPS/PPS headers, not using packed headers"
+                    );
                 }
                 None
             }
@@ -668,13 +670,16 @@ impl<D: SurfaceMemoryDescriptor, S: std::borrow::Borrow<Surface<D>> + 'static>
 pub(super) mod tests {
     use libva::Display;
     use libva::UsageHint;
+    use libva::VA_RT_FORMAT_YUV420;
     use libva::VAEntrypoint::VAEntrypointEncSliceLP;
     use libva::VAProfile::VAProfileH264Main;
-    use libva::VA_RT_FORMAT_YUV420;
 
     use super::*;
-    use crate::backend::vaapi::encoder::tests::upload_test_frame_nv12;
+    use crate::FrameLayout;
+    use crate::PlaneLayout;
+    use crate::Resolution;
     use crate::backend::vaapi::encoder::tests::TestFrameGenerator;
+    use crate::backend::vaapi::encoder::tests::upload_test_frame_nv12;
     use crate::backend::vaapi::surface_pool::PooledVaSurface;
     use crate::backend::vaapi::surface_pool::VaSurfacePool;
     use crate::codec::h264::parser::Level;
@@ -684,17 +689,14 @@ pub(super) mod tests {
     use crate::codec::h264::parser::SliceType;
     use crate::codec::h264::parser::SpsBuilder;
     use crate::decoder::FramePool;
+    use crate::encoder::FrameMetadata;
+    use crate::encoder::Tunings;
     use crate::encoder::simple_encode_loop;
+    use crate::encoder::stateless::BackendPromise;
+    use crate::encoder::stateless::StatelessEncoderBackendImport;
     use crate::encoder::stateless::h264::BackendRequest;
     use crate::encoder::stateless::h264::EncoderConfig;
     use crate::encoder::stateless::h264::StatelessEncoder;
-    use crate::encoder::stateless::BackendPromise;
-    use crate::encoder::stateless::StatelessEncoderBackendImport;
-    use crate::encoder::FrameMetadata;
-    use crate::encoder::Tunings;
-    use crate::FrameLayout;
-    use crate::PlaneLayout;
-    use crate::Resolution;
 
     #[test]
     // Ignore this test by default as it requires libva-compatible hardware.
@@ -736,7 +738,7 @@ pub(super) mod tests {
         let mut surfaces = display
             .create_surfaces(
                 VA_RT_FORMAT_YUV420,
-                Some(frame_layout.format.0 .0),
+                Some(frame_layout.format.0.0),
                 WIDTH,
                 HEIGHT,
                 Some(UsageHint::USAGE_HINT_ENCODER),

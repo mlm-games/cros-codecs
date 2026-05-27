@@ -13,10 +13,12 @@ use std::time::Duration;
 use v4l2r::device::Device as VideoDevice;
 use v4l2r::device::DeviceConfig;
 use v4l2r::ioctl;
-use v4l2r::nix::fcntl::open;
 use v4l2r::nix::fcntl::OFlag;
+use v4l2r::nix::fcntl::open;
 use v4l2r::nix::sys::stat::Mode;
 
+use crate::Fourcc;
+use crate::Resolution;
 use crate::decoder::stateless::DecodeError;
 use crate::decoder::stateless::NewStatelessDecoderError;
 use crate::decoder::stateless::StatelessBackendError;
@@ -27,8 +29,6 @@ use crate::device::v4l2::stateless::queue::V4l2OutputQueue;
 use crate::device::v4l2::stateless::request::V4l2Request;
 use crate::device::v4l2::utils::enumerate_devices;
 use crate::video_frame::VideoFrame;
-use crate::Fourcc;
-use crate::Resolution;
 
 //TODO: handle other memory backends for OUTPUT queue
 //TODO: handle video formats other than h264
@@ -215,7 +215,7 @@ impl<V: VideoFrame> V4l2Device<V> {
             Err(e) => {
                 return Err(DecodeError::BackendError(StatelessBackendError::Other(
                     anyhow::anyhow!(e),
-                )))
+                )));
             }
         };
         self.handle.borrow_mut().insert_request_into_hash(Rc::downgrade(&request.clone()));

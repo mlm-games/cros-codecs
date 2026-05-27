@@ -4,19 +4,19 @@
 
 use std::sync::Arc;
 
-use crate::backend::v4l2::encoder::find_device_with_capture;
-use crate::backend::v4l2::encoder::MmapingCapture;
-use crate::c2_wrapper::c2_encoder::C2EncoderBackend;
-use crate::encoder::stateful::h264::v4l2::V4L2StatefulH264Encoder;
-use crate::encoder::stateful::vp8::v4l2::V4L2StatefulVP8Encoder;
-use crate::encoder::stateful::vp9::v4l2::V4L2StatefulVP9Encoder;
-use crate::encoder::VideoEncoder;
-use crate::video_frame::V4l2VideoFrame;
-use crate::video_frame::VideoFrame;
 use crate::DecodedFormat;
 use crate::EncodedFormat;
 use crate::Fourcc;
 use crate::Resolution;
+use crate::backend::v4l2::encoder::MmapingCapture;
+use crate::backend::v4l2::encoder::find_device_with_capture;
+use crate::c2_wrapper::c2_encoder::C2EncoderBackend;
+use crate::encoder::VideoEncoder;
+use crate::encoder::stateful::h264::v4l2::V4L2StatefulH264Encoder;
+use crate::encoder::stateful::vp8::v4l2::V4L2StatefulVP8Encoder;
+use crate::encoder::stateful::vp9::v4l2::V4L2StatefulVP9Encoder;
+use crate::video_frame::V4l2VideoFrame;
+use crate::video_frame::VideoFrame;
 
 use v4l2r::device::Device;
 use v4l2r::device::DeviceConfig;

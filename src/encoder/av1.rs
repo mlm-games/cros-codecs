@@ -2,11 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+use crate::Resolution;
 use crate::codec::av1::parser::BitDepth;
 use crate::codec::av1::parser::Profile;
 use crate::encoder::PredictionStructure;
 use crate::encoder::Tunings;
-use crate::Resolution;
 
 pub struct AV1;
 

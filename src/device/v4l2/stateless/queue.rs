@@ -9,12 +9,13 @@ use std::rc::Rc;
 use std::sync::Arc;
 use thiserror::Error;
 
+use v4l2r::Format;
+use v4l2r::PlaneLayout;
 use v4l2r::bindings::v4l2_format;
-use v4l2r::device::queue::direction;
-use v4l2r::device::queue::direction::Capture;
-use v4l2r::device::queue::direction::Output;
-use v4l2r::device::queue::dqbuf::DqBuffer;
-use v4l2r::device::queue::qbuf::QBuffer;
+use v4l2r::device::AllocatedQueue;
+use v4l2r::device::Device;
+use v4l2r::device::Stream;
+use v4l2r::device::TryDequeue;
 use v4l2r::device::queue::BuffersAllocated;
 use v4l2r::device::queue::CaptureQueueable;
 use v4l2r::device::queue::CreateQueueError;
@@ -24,10 +25,11 @@ use v4l2r::device::queue::GetFreeOutputBuffer;
 use v4l2r::device::queue::Queue;
 use v4l2r::device::queue::QueueInit;
 use v4l2r::device::queue::RequestBuffersError;
-use v4l2r::device::AllocatedQueue;
-use v4l2r::device::Device;
-use v4l2r::device::Stream;
-use v4l2r::device::TryDequeue;
+use v4l2r::device::queue::direction;
+use v4l2r::device::queue::direction::Capture;
+use v4l2r::device::queue::direction::Output;
+use v4l2r::device::queue::dqbuf::DqBuffer;
+use v4l2r::device::queue::qbuf::QBuffer;
 use v4l2r::ioctl::GFmtError;
 use v4l2r::ioctl::IoctlConvertError;
 use v4l2r::ioctl::QBufIoctlError;
@@ -39,17 +41,15 @@ use v4l2r::memory::MemoryType;
 use v4l2r::memory::MmapHandle;
 use v4l2r::memory::PlaneHandle;
 use v4l2r::nix::sys::time::TimeVal;
-use v4l2r::Format;
-use v4l2r::PlaneLayout;
 
+use crate::Fourcc;
+use crate::Resolution;
 use crate::decoder::stateless::DecodeError;
 use crate::decoder::stateless::NewStatelessDecoderError;
 use crate::decoder::stateless::StatelessBackendError;
 use crate::utils::buffer_size_for_area;
 use crate::video_frame::V4l2VideoFrame;
 use crate::video_frame::VideoFrame;
-use crate::Fourcc;
-use crate::Resolution;
 
 //TODO: handle memory backends other than mmap
 //TODO: handle video formats other than h264

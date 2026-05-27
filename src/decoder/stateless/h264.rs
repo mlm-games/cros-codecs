@@ -15,11 +15,12 @@ use std::os::fd::AsFd;
 use std::os::fd::BorrowedFd;
 use std::rc::Rc;
 
-use anyhow::anyhow;
 use anyhow::Context;
+use anyhow::anyhow;
 use log::debug;
 use thiserror::Error;
 
+use crate::Resolution;
 use crate::codec::h264::dpb::Dpb;
 use crate::codec::h264::dpb::DpbEntry;
 use crate::codec::h264::dpb::DpbPicRefList;
@@ -41,6 +42,10 @@ use crate::codec::h264::picture::IsIdr;
 use crate::codec::h264::picture::PictureData;
 use crate::codec::h264::picture::RcPictureData;
 use crate::codec::h264::picture::Reference;
+use crate::decoder::BlockingMode;
+use crate::decoder::DecodedHandle;
+use crate::decoder::DecoderEvent;
+use crate::decoder::StreamInfo;
 use crate::decoder::stateless::DecodeError;
 use crate::decoder::stateless::DecodingState;
 use crate::decoder::stateless::NewPictureResult;
@@ -50,11 +55,6 @@ use crate::decoder::stateless::StatelessDecoder;
 use crate::decoder::stateless::StatelessDecoderBackend;
 use crate::decoder::stateless::StatelessDecoderBackendPicture;
 use crate::decoder::stateless::StatelessVideoDecoder;
-use crate::decoder::BlockingMode;
-use crate::decoder::DecodedHandle;
-use crate::decoder::DecoderEvent;
-use crate::decoder::StreamInfo;
-use crate::Resolution;
 
 pub fn get_raster_from_zigzag_8x8(src: [u8; 64], dst: &mut [u8; 64]) {
     const ZIGZAG_8X8: [usize; 64] = [
@@ -1114,7 +1114,9 @@ where
                     Entry::Occupied(mut current_macroblock) => {
                         let current_macroblock = current_macroblock.get_mut();
                         if slice.header.first_mb_in_slice >= *current_macroblock {
-                            log::trace!("first_mb_in_slice does not increase monotically, expect corrupted output");
+                            log::trace!(
+                                "first_mb_in_slice does not increase monotically, expect corrupted output"
+                            );
                         }
                         *current_macroblock = slice.header.first_mb_in_slice;
                     }
@@ -1311,7 +1313,7 @@ where
             }
             // Ask the client to confirm the format before we can process this.
             DecodingState::FlushingForDRC | DecodingState::AwaitingFormat(_) => {
-                return Err(DecodeError::CheckEvents)
+                return Err(DecodeError::CheckEvents);
             }
             DecodingState::Decoding => {
                 self.process_nalu(timestamp, nalu, alloc_cb)?;
@@ -1347,16 +1349,16 @@ where
 
 #[cfg(test)]
 pub mod tests {
+    use crate::DecodedFormat;
     use crate::bitstream_utils::NalIterator;
     use crate::codec::h264::parser::Nalu;
-    use crate::decoder::stateless::h264::H264;
-    use crate::decoder::stateless::tests::test_decode_stream;
-    use crate::decoder::stateless::tests::TestStream;
-    use crate::decoder::stateless::StatelessDecoder;
     use crate::decoder::BlockingMode;
+    use crate::decoder::stateless::StatelessDecoder;
+    use crate::decoder::stateless::h264::H264;
+    use crate::decoder::stateless::tests::TestStream;
+    use crate::decoder::stateless::tests::test_decode_stream;
     use crate::utils::simple_playback_loop;
     use crate::utils::simple_playback_loop_owned_frames;
-    use crate::DecodedFormat;
 
     /// Run `test` using the dummy decoder, in both blocking and non-blocking modes.
     fn test_decoder_dummy(test: &TestStream, blocking_mode: BlockingMode) {

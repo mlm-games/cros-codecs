@@ -143,7 +143,7 @@ impl From<Resolution> for Rect {
 
 impl From<((u32, u32), (u32, u32))> for Rect {
     fn from(value: ((u32, u32), (u32, u32))) -> Self {
-        Self { x: value.0 .0, y: value.0 .1, width: value.1 .0, height: value.1 .1 }
+        Self { x: value.0.0, y: value.0.1, width: value.1.0, height: value.1.1 }
     }
 }
 /// Wrapper around u32 when they are meant to be a fourcc.

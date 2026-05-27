@@ -15,12 +15,12 @@ pub mod vp9;
 pub mod stateful;
 pub mod stateless;
 
+use crate::FrameLayout;
 #[cfg(feature = "av1")]
 use crate::codec::av1::synthesizer::SynthesizerError as AV1SynthesizerError;
 use crate::codec::h264::synthesizer::SynthesizerError as H264SynthesizerError;
 use crate::encoder::stateful::StatefulBackendError;
 use crate::encoder::stateless::StatelessBackendError;
-use crate::FrameLayout;
 
 /// Specifies the encoder operation
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -241,13 +241,13 @@ pub fn simple_encode_loop<H>(
 #[cfg(test)]
 pub(crate) mod tests {
     #[cfg(feature = "v4l2")]
-    use crate::encoder::FrameMetadata;
-    #[cfg(feature = "v4l2")]
-    use crate::utils::UserPtrFrame;
-    #[cfg(feature = "v4l2")]
     use crate::Fourcc;
     #[cfg(feature = "v4l2")]
     use crate::FrameLayout;
+    #[cfg(feature = "v4l2")]
+    use crate::encoder::FrameMetadata;
+    #[cfg(feature = "v4l2")]
+    use crate::utils::UserPtrFrame;
 
     pub fn get_test_frame_t(ts: u64, max_ts: u64) -> f32 {
         2.0 * std::f32::consts::PI * (ts as f32) / (max_ts as f32)

@@ -134,7 +134,8 @@ where
             output.buffer.bitstream.len()
         );
         if !self.processing.remove(&output.request_id) {
-            log::warn!("Coded buffer returned for non existing or already processed request id={:?} timestamp={}",
+            log::warn!(
+                "Coded buffer returned for non existing or already processed request id={:?} timestamp={}",
                 output.request_id,
                 output.buffer.metadata.timestamp,
             );

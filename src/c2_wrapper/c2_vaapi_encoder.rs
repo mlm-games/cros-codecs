@@ -4,21 +4,21 @@
 
 use std::sync::Arc;
 
+use crate::BlockingMode;
+use crate::DecodedFormat;
+use crate::EncodedFormat;
+use crate::Fourcc;
+use crate::Resolution;
 use crate::c2_wrapper::c2_encoder::C2EncoderBackend;
+use crate::encoder::VideoEncoder;
 use crate::encoder::av1::EncoderConfig as AV1EncoderConfig;
 use crate::encoder::h264::EncoderConfig as H264EncoderConfig;
 use crate::encoder::stateless::av1;
 use crate::encoder::stateless::h264;
 use crate::encoder::stateless::vp9;
 use crate::encoder::vp9::EncoderConfig as VP9EncoderConfig;
-use crate::encoder::VideoEncoder;
 use crate::utils::align_up;
 use crate::video_frame::VideoFrame;
-use crate::BlockingMode;
-use crate::DecodedFormat;
-use crate::EncodedFormat;
-use crate::Fourcc;
-use crate::Resolution;
 
 #[derive(Clone, Debug)]
 pub struct C2VaapiEncoderOptions {
@@ -41,8 +41,7 @@ impl C2EncoderBackend for C2VaapiEncoder {
         const VAAPI_HEIGHT_ALIGN: u32 = 16;
 
         // TODO: Support alternative display paths
-        let display =
-            libva::Display::open().ok_or("Error opening LibVA display!".to_string())?;
+        let display = libva::Display::open().ok_or("Error opening LibVA display!".to_string())?;
         Ok(Self {
             display,
             low_power: options.low_power,

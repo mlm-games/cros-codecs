@@ -17,8 +17,15 @@ use std::time::Duration;
 
 use std::sync::atomic::{AtomicU64, Ordering};
 
+use cros_codecs::DecodedFormat;
+use cros_codecs::EncodedFormat;
+use cros_codecs::Fourcc;
 use cros_codecs::bitstream_utils::IvfIterator;
 use cros_codecs::bitstream_utils::NalIterator;
+use cros_codecs::c2_wrapper::C2DecodeJob;
+use cros_codecs::c2_wrapper::C2Status;
+use cros_codecs::c2_wrapper::C2Wrapper;
+use cros_codecs::c2_wrapper::DrainMode;
 use cros_codecs::c2_wrapper::c2_decoder::C2DecoderWorker;
 #[cfg(feature = "v4l2")]
 use cros_codecs::c2_wrapper::c2_v4l2_decoder::C2V4L2Decoder;
@@ -28,33 +35,26 @@ use cros_codecs::c2_wrapper::c2_v4l2_decoder::C2V4L2DecoderOptions;
 use cros_codecs::c2_wrapper::c2_vaapi_decoder::C2VaapiDecoder;
 #[cfg(feature = "vaapi")]
 use cros_codecs::c2_wrapper::c2_vaapi_decoder::C2VaapiDecoderOptions;
-use cros_codecs::c2_wrapper::C2DecodeJob;
-use cros_codecs::c2_wrapper::C2Status;
-use cros_codecs::c2_wrapper::C2Wrapper;
-use cros_codecs::c2_wrapper::DrainMode;
 use cros_codecs::codec::h264::parser::Nalu as H264Nalu;
 use cros_codecs::codec::h265::parser::Nalu as H265Nalu;
 use cros_codecs::decoder::StreamInfo;
 use cros_codecs::image_processing::nv12_to_i420;
 use cros_codecs::utils::align_up;
+use cros_codecs::video_frame::UV_PLANE;
+use cros_codecs::video_frame::VideoFrame;
+use cros_codecs::video_frame::Y_PLANE;
 use cros_codecs::video_frame::frame_pool::FramePool;
 use cros_codecs::video_frame::frame_pool::PooledVideoFrame;
 use cros_codecs::video_frame::gbm_video_frame::GbmDevice;
 use cros_codecs::video_frame::gbm_video_frame::GbmUsage;
 use cros_codecs::video_frame::generic_dma_video_frame::GenericDmaVideoFrame;
-use cros_codecs::video_frame::VideoFrame;
-use cros_codecs::video_frame::UV_PLANE;
-use cros_codecs::video_frame::Y_PLANE;
-use cros_codecs::DecodedFormat;
-use cros_codecs::EncodedFormat;
-use cros_codecs::Fourcc;
 
-use crate::md5::md5_digest;
 use crate::md5::MD5Context;
-use crate::util::decide_output_file_name;
-use crate::util::golden_md5s;
+use crate::md5::md5_digest;
 use crate::util::Args;
 use crate::util::Md5Computation;
+use crate::util::decide_output_file_name;
+use crate::util::golden_md5s;
 
 mod md5;
 mod util;

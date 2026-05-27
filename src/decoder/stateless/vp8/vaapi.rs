@@ -6,23 +6,25 @@ use std::convert::TryFrom;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use anyhow::anyhow;
 use anyhow::Context;
+use anyhow::anyhow;
 use libva::BufferType;
 use libva::Display;
 use libva::IQMatrix;
 use libva::IQMatrixBufferVP8;
 use libva::ProbabilityDataBufferVP8;
 
-use crate::backend::vaapi::decoder::va_surface_id;
+use crate::Rect;
+use crate::Resolution;
 use crate::backend::vaapi::decoder::VaStreamInfo;
 use crate::backend::vaapi::decoder::VaapiBackend;
 use crate::backend::vaapi::decoder::VaapiPicture;
+use crate::backend::vaapi::decoder::va_surface_id;
 use crate::codec::vp8::parser::Header;
 use crate::codec::vp8::parser::MbLfAdjustments;
 use crate::codec::vp8::parser::Segmentation;
-use crate::decoder::stateless::vp8::StatelessVp8DecoderBackend;
-use crate::decoder::stateless::vp8::Vp8;
+use crate::decoder::BlockingMode;
+use crate::decoder::DecodedHandle;
 use crate::decoder::stateless::NewPictureError;
 use crate::decoder::stateless::NewPictureResult;
 use crate::decoder::stateless::NewStatelessDecoderError;
@@ -30,11 +32,9 @@ use crate::decoder::stateless::StatelessBackendResult;
 use crate::decoder::stateless::StatelessDecoder;
 use crate::decoder::stateless::StatelessDecoderBackend;
 use crate::decoder::stateless::StatelessDecoderBackendPicture;
-use crate::decoder::BlockingMode;
-use crate::decoder::DecodedHandle;
+use crate::decoder::stateless::vp8::StatelessVp8DecoderBackend;
+use crate::decoder::stateless::vp8::Vp8;
 use crate::video_frame::VideoFrame;
-use crate::Rect;
-use crate::Resolution;
 
 /// The number of surfaces to allocate for this codec. Same as GStreamer's vavp8dec.
 const NUM_SURFACES: usize = 7;
@@ -306,16 +306,16 @@ mod tests {
     use libva::PictureParameter;
     use libva::SliceParameter;
 
-    use crate::bitstream_utils::IvfIterator;
-    use crate::codec::vp8::parser::Parser;
-    use crate::decoder::stateless::tests::test_decode_stream;
-    use crate::decoder::stateless::tests::TestStream;
-    use crate::decoder::stateless::StatelessDecoder;
-    use crate::decoder::BlockingMode;
-    use crate::utils::simple_playback_loop;
-    use crate::utils::simple_playback_loop_owned_frames;
     use crate::DecodedFormat;
     use crate::Resolution;
+    use crate::bitstream_utils::IvfIterator;
+    use crate::codec::vp8::parser::Parser;
+    use crate::decoder::BlockingMode;
+    use crate::decoder::stateless::StatelessDecoder;
+    use crate::decoder::stateless::tests::TestStream;
+    use crate::decoder::stateless::tests::test_decode_stream;
+    use crate::utils::simple_playback_loop;
+    use crate::utils::simple_playback_loop_owned_frames;
 
     use super::*;
 

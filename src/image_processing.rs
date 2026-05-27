@@ -4,8 +4,8 @@
 
 use std::cmp::min;
 
-use crate::video_frame::{VideoFrame, UV_PLANE, U_PLANE, V_PLANE, Y_PLANE};
 use crate::DecodedFormat;
+use crate::video_frame::{U_PLANE, UV_PLANE, V_PLANE, VideoFrame, Y_PLANE};
 
 /// TODO(greenjustin): This entire file should be replaced with LibYUV.
 use byteorder::ByteOrder;

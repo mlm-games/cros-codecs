@@ -6,13 +6,13 @@ use std::collections::VecDeque;
 
 use thiserror::Error;
 
+use crate::BlockingMode;
 use crate::encoder::CodedBitstreamBuffer;
 use crate::encoder::EncodeError;
 use crate::encoder::EncodeResult;
 use crate::encoder::FrameMetadata;
 use crate::encoder::Tunings;
 use crate::encoder::VideoEncoder;
-use crate::BlockingMode;
 
 #[cfg(all(feature = "vaapi", feature = "av1"))]
 pub mod av1;

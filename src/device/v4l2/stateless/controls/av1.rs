@@ -4,12 +4,6 @@
 
 use std::marker::PhantomData;
 
-use v4l2r::bindings::v4l2_ctrl_av1_film_grain;
-use v4l2r::bindings::v4l2_ctrl_av1_frame;
-use v4l2r::bindings::v4l2_ctrl_av1_sequence;
-use v4l2r::bindings::v4l2_ctrl_av1_tile_group_entry;
-use v4l2r::bindings::v4l2_ext_control;
-use v4l2r::bindings::v4l2_ext_control__bindgen_ty_1;
 use v4l2r::bindings::V4L2_AV1_AR_COEFFS_SIZE;
 use v4l2r::bindings::V4L2_AV1_CDEF_MAX;
 use v4l2r::bindings::V4L2_AV1_FILM_GRAIN_FLAG_APPLY_GRAIN;
@@ -31,8 +25,8 @@ use v4l2r::bindings::V4L2_AV1_FRAME_FLAG_FRAME_SIZE_OVERRIDE;
 use v4l2r::bindings::V4L2_AV1_FRAME_FLAG_IS_MOTION_MODE_SWITCHABLE;
 use v4l2r::bindings::V4L2_AV1_FRAME_FLAG_REDUCED_TX_SET;
 use v4l2r::bindings::V4L2_AV1_FRAME_FLAG_REFERENCE_SELECT;
-use v4l2r::bindings::V4L2_AV1_FRAME_FLAG_SHOWABLE_FRAME;
 use v4l2r::bindings::V4L2_AV1_FRAME_FLAG_SHOW_FRAME;
+use v4l2r::bindings::V4L2_AV1_FRAME_FLAG_SHOWABLE_FRAME;
 use v4l2r::bindings::V4L2_AV1_FRAME_FLAG_SKIP_MODE_ALLOWED;
 use v4l2r::bindings::V4L2_AV1_FRAME_FLAG_SKIP_MODE_PRESENT;
 use v4l2r::bindings::V4L2_AV1_FRAME_FLAG_USE_REF_FRAME_MVS;
@@ -88,6 +82,12 @@ use v4l2r::bindings::V4L2_CID_STATELESS_AV1_FILM_GRAIN;
 use v4l2r::bindings::V4L2_CID_STATELESS_AV1_FRAME;
 use v4l2r::bindings::V4L2_CID_STATELESS_AV1_SEQUENCE;
 use v4l2r::bindings::V4L2_CID_STATELESS_AV1_TILE_GROUP_ENTRY;
+use v4l2r::bindings::v4l2_ctrl_av1_film_grain;
+use v4l2r::bindings::v4l2_ctrl_av1_frame;
+use v4l2r::bindings::v4l2_ctrl_av1_sequence;
+use v4l2r::bindings::v4l2_ctrl_av1_tile_group_entry;
+use v4l2r::bindings::v4l2_ext_control;
+use v4l2r::bindings::v4l2_ext_control__bindgen_ty_1;
 use v4l2r::controls::AsV4l2ControlSlice;
 
 use crate::codec::av1::parser::CdefParams;
@@ -95,12 +95,12 @@ use crate::codec::av1::parser::FrameHeaderObu;
 use crate::codec::av1::parser::GlobalMotionParams;
 use crate::codec::av1::parser::LoopFilterParams;
 use crate::codec::av1::parser::LoopRestorationParams;
+use crate::codec::av1::parser::NUM_REF_FRAMES;
 use crate::codec::av1::parser::QuantizationParams;
+use crate::codec::av1::parser::REFS_PER_FRAME;
 use crate::codec::av1::parser::SegmentationParams;
 use crate::codec::av1::parser::SequenceHeaderObu;
 use crate::codec::av1::parser::Tile;
-use crate::codec::av1::parser::NUM_REF_FRAMES;
-use crate::codec::av1::parser::REFS_PER_FRAME;
 
 // v4l2r does not have V4L2_AV1_SEG_LVL_MAX
 //use v4l2r::bindings::V4L2_AV1_SEG_LVL_MAX;

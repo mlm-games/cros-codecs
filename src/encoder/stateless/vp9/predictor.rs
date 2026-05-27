@@ -9,13 +9,13 @@ use crate::codec::vp9::parser::FrameType;
 use crate::codec::vp9::parser::Header;
 use crate::codec::vp9::parser::Profile;
 use crate::codec::vp9::parser::QuantizationParams;
-use crate::encoder::stateless::predictor::LowDelay;
-use crate::encoder::stateless::predictor::LowDelayDelegate;
-use crate::encoder::stateless::vp9::ReferenceUse;
-use crate::encoder::stateless::EncodeResult;
 use crate::encoder::FrameMetadata;
 use crate::encoder::RateControl;
 use crate::encoder::Tunings;
+use crate::encoder::stateless::EncodeResult;
+use crate::encoder::stateless::predictor::LowDelay;
+use crate::encoder::stateless::predictor::LowDelayDelegate;
+use crate::encoder::stateless::vp9::ReferenceUse;
 
 pub(crate) const MIN_Q_IDX: u8 = 0;
 pub(crate) const MAX_Q_IDX: u8 = 255;

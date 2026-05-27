@@ -5,38 +5,38 @@
 use std::rc::Rc;
 use std::sync::Arc;
 
-use anyhow::anyhow;
 use anyhow::Context;
+use anyhow::anyhow;
 use libva::Display;
 
-use crate::backend::vaapi::decoder::va_surface_id;
+use crate::Rect;
+use crate::Resolution;
 use crate::backend::vaapi::decoder::DecodedHandle as VADecodedHandle;
 use crate::backend::vaapi::decoder::VaStreamInfo;
 use crate::backend::vaapi::decoder::VaapiBackend;
 use crate::backend::vaapi::decoder::VaapiPicture;
+use crate::backend::vaapi::decoder::va_surface_id;
 use crate::codec::av1::parser::BitDepth;
 use crate::codec::av1::parser::FrameHeaderObu;
-use crate::codec::av1::parser::Profile;
-use crate::codec::av1::parser::StreamInfo;
-use crate::codec::av1::parser::TileGroupObu;
-use crate::codec::av1::parser::WarpModelType;
 use crate::codec::av1::parser::MAX_SEGMENTS;
 use crate::codec::av1::parser::MAX_TILE_COLS;
 use crate::codec::av1::parser::MAX_TILE_ROWS;
 use crate::codec::av1::parser::NUM_REF_FRAMES;
+use crate::codec::av1::parser::Profile;
 use crate::codec::av1::parser::SEG_LVL_MAX;
-use crate::decoder::stateless::av1::Av1;
-use crate::decoder::stateless::av1::StatelessAV1DecoderBackend;
+use crate::codec::av1::parser::StreamInfo;
+use crate::codec::av1::parser::TileGroupObu;
+use crate::codec::av1::parser::WarpModelType;
+use crate::decoder::BlockingMode;
 use crate::decoder::stateless::NewPictureError;
 use crate::decoder::stateless::NewPictureResult;
 use crate::decoder::stateless::NewStatelessDecoderError;
 use crate::decoder::stateless::StatelessBackendResult;
 use crate::decoder::stateless::StatelessDecoder;
 use crate::decoder::stateless::StatelessDecoderBackendPicture;
-use crate::decoder::BlockingMode;
+use crate::decoder::stateless::av1::Av1;
+use crate::decoder::stateless::av1::StatelessAV1DecoderBackend;
 use crate::video_frame::VideoFrame;
-use crate::Rect;
-use crate::Resolution;
 
 /// The number of surfaces to allocate for this codec.
 const NUM_SURFACES: usize = 16;
@@ -571,15 +571,15 @@ impl<V: VideoFrame> StatelessDecoder<Av1, VaapiBackend<V>> {
 mod tests {
     use libva::Display;
 
+    use crate::DecodedFormat;
     use crate::bitstream_utils::IvfIterator;
-    use crate::decoder::stateless::av1::Av1;
-    use crate::decoder::stateless::tests::test_decode_stream;
-    use crate::decoder::stateless::tests::TestStream;
-    use crate::decoder::stateless::StatelessDecoder;
     use crate::decoder::BlockingMode;
+    use crate::decoder::stateless::StatelessDecoder;
+    use crate::decoder::stateless::av1::Av1;
+    use crate::decoder::stateless::tests::TestStream;
+    use crate::decoder::stateless::tests::test_decode_stream;
     use crate::utils::simple_playback_loop;
     use crate::utils::simple_playback_loop_owned_frames;
-    use crate::DecodedFormat;
 
     /// Run `test` using the vaapi decoder, in both blocking and non-blocking modes.
     fn test_decoder_vaapi(

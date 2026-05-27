@@ -145,11 +145,7 @@ impl ObuHeader {
     /// Length in bytes
     #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> usize {
-        if self.extension_flag {
-            2
-        } else {
-            1
-        }
+        if self.extension_flag { 2 } else { 1 }
     }
 }
 

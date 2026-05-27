@@ -21,9 +21,9 @@ use nix::sys::eventfd::EventFd;
 
 pub use crate::BlockingMode;
 
-use crate::video_frame::VideoFrame;
 use crate::DecodedFormat;
 use crate::Resolution;
+use crate::video_frame::VideoFrame;
 
 /// Trait for a pool of frames in a particular format.
 ///

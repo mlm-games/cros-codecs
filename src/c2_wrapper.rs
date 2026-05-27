@@ -10,16 +10,16 @@ use thiserror::Error;
 
 use std::collections::VecDeque;
 use std::marker::PhantomData;
-use std::sync::atomic::AtomicU32;
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::sync::atomic::AtomicU32;
 use std::thread;
 use std::thread::JoinHandle;
 use std::vec::Vec;
 
+use crate::Fourcc;
 use crate::decoder::StreamInfo;
 use crate::video_frame::VideoFrame;
-use crate::Fourcc;
 
 pub mod c2_decoder;
 pub mod c2_encoder;

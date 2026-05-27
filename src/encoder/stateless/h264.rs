@@ -4,12 +4,15 @@
 
 use std::rc::Rc;
 
+use crate::BlockingMode;
 use crate::codec::h264::parser::Pps;
 use crate::codec::h264::parser::SliceHeader;
 use crate::codec::h264::parser::Sps;
+use crate::encoder::EncodeResult;
+use crate::encoder::PredictionStructure;
+use crate::encoder::Tunings;
 use crate::encoder::h264::EncoderConfig;
 use crate::encoder::h264::H264;
-use crate::encoder::stateless::h264::predictor::LowDelayH264;
 use crate::encoder::stateless::BackendPromise;
 use crate::encoder::stateless::BitstreamPromise;
 use crate::encoder::stateless::FrameMetadata;
@@ -19,10 +22,7 @@ use crate::encoder::stateless::StatelessCodec;
 use crate::encoder::stateless::StatelessEncoderBackendImport;
 use crate::encoder::stateless::StatelessEncoderExecute;
 use crate::encoder::stateless::StatelessVideoEncoderBackend;
-use crate::encoder::EncodeResult;
-use crate::encoder::PredictionStructure;
-use crate::encoder::Tunings;
-use crate::BlockingMode;
+use crate::encoder::stateless::h264::predictor::LowDelayH264;
 
 mod predictor;
 

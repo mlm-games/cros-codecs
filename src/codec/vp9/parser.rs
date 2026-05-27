@@ -636,8 +636,7 @@ impl Parser {
         if frames_in_superframe > MAX_FRAMES_IN_SUPERFRAME as u32 {
             return Err(format!(
                 "Broken stream: too many frames in superframe, expected a maximum of {:?}, found {:?}",
-                MAX_FRAMES_IN_SUPERFRAME,
-                frames_in_superframe
+                MAX_FRAMES_IN_SUPERFRAME, frames_in_superframe
             ));
         }
 
@@ -679,11 +678,7 @@ impl Parser {
         let value = r.read_bits::<u8>(nbits as usize)?;
         let negative = r.read_bit()?;
 
-        if negative {
-            Ok(-(value as i8))
-        } else {
-            Ok(value as i8)
-        }
+        if negative { Ok(-(value as i8)) } else { Ok(value as i8) }
     }
 
     fn parse_frame_marker(r: &mut BitReader) -> Result<(), String> {
@@ -1193,9 +1188,9 @@ mod tests {
     use crate::codec::vp9::parser::ColorSpace;
     use crate::codec::vp9::parser::FrameType;
     use crate::codec::vp9::parser::InterpolationFilter;
+    use crate::codec::vp9::parser::MAX_SEGMENTS;
     use crate::codec::vp9::parser::Parser;
     use crate::codec::vp9::parser::Profile;
-    use crate::codec::vp9::parser::MAX_SEGMENTS;
     use crate::codec::vp9::parser::SEG_LVL_MAX;
 
     #[test]

@@ -5,26 +5,27 @@
 use std::rc::Rc;
 use std::sync::Arc;
 
-use anyhow::anyhow;
 use anyhow::Context;
+use anyhow::anyhow;
 use libva::Display;
 use libva::SegmentParameterVP9;
 
-use crate::backend::vaapi::decoder::va_surface_id;
+use crate::Rect;
+use crate::Resolution;
 use crate::backend::vaapi::decoder::VaStreamInfo;
 use crate::backend::vaapi::decoder::VaapiBackend;
 use crate::backend::vaapi::decoder::VaapiPicture;
-use crate::codec::vp9::parser::BitDepth;
-use crate::codec::vp9::parser::Header;
-use crate::codec::vp9::parser::Profile;
+use crate::backend::vaapi::decoder::va_surface_id;
 use crate::codec::vp9::parser::ALTREF_FRAME;
+use crate::codec::vp9::parser::BitDepth;
 use crate::codec::vp9::parser::GOLDEN_FRAME;
+use crate::codec::vp9::parser::Header;
 use crate::codec::vp9::parser::LAST_FRAME;
 use crate::codec::vp9::parser::MAX_SEGMENTS;
 use crate::codec::vp9::parser::NUM_REF_FRAMES;
-use crate::decoder::stateless::vp9::Segmentation;
-use crate::decoder::stateless::vp9::StatelessVp9DecoderBackend;
-use crate::decoder::stateless::vp9::Vp9;
+use crate::codec::vp9::parser::Profile;
+use crate::decoder::BlockingMode;
+use crate::decoder::DecodedHandle;
 use crate::decoder::stateless::NewPictureError;
 use crate::decoder::stateless::NewPictureResult;
 use crate::decoder::stateless::NewStatelessDecoderError;
@@ -32,11 +33,10 @@ use crate::decoder::stateless::StatelessBackendResult;
 use crate::decoder::stateless::StatelessDecoder;
 use crate::decoder::stateless::StatelessDecoderBackend;
 use crate::decoder::stateless::StatelessDecoderBackendPicture;
-use crate::decoder::BlockingMode;
-use crate::decoder::DecodedHandle;
+use crate::decoder::stateless::vp9::Segmentation;
+use crate::decoder::stateless::vp9::StatelessVp9DecoderBackend;
+use crate::decoder::stateless::vp9::Vp9;
 use crate::video_frame::VideoFrame;
-use crate::Rect;
-use crate::Resolution;
 
 /// The number of surfaces to allocate for this codec.
 const NUM_SURFACES: usize = 12;
@@ -73,33 +73,33 @@ fn get_rt_format(
         Profile::Profile3 => {
             if subsampling_x && !subsampling_y {
                 match bit_depth {
-                        BitDepth::Depth8 => Err(anyhow!(
-                            "Unsupported (subsampling_x, subsampling_y, bit depth) combination for profile 3: ({:?}, {:?}, {:?})",
-                            subsampling_x,
-                            subsampling_y,
-                            bit_depth
-                        )),
-                        BitDepth::Depth10 => Ok(libva::VA_RT_FORMAT_YUV422_10),
-                        BitDepth::Depth12 => Ok(libva::VA_RT_FORMAT_YUV422_12),
-                    }
+                    BitDepth::Depth8 => Err(anyhow!(
+                        "Unsupported (subsampling_x, subsampling_y, bit depth) combination for profile 3: ({:?}, {:?}, {:?})",
+                        subsampling_x,
+                        subsampling_y,
+                        bit_depth
+                    )),
+                    BitDepth::Depth10 => Ok(libva::VA_RT_FORMAT_YUV422_10),
+                    BitDepth::Depth12 => Ok(libva::VA_RT_FORMAT_YUV422_12),
+                }
             } else if !subsampling_x && !subsampling_y {
                 match bit_depth {
-                        BitDepth::Depth8 => Err(anyhow!(
-                            "Unsupported (subsampling_x, subsampling_y, bit depth) combination for profile 3: ({:?}, {:?}, {:?})",
-                            subsampling_x,
-                            subsampling_y,
-                            bit_depth
-                        )),
-                        BitDepth::Depth10 => Ok(libva::VA_RT_FORMAT_YUV444_10),
-                        BitDepth::Depth12 => Ok(libva::VA_RT_FORMAT_YUV444_12),
-                    }
+                    BitDepth::Depth8 => Err(anyhow!(
+                        "Unsupported (subsampling_x, subsampling_y, bit depth) combination for profile 3: ({:?}, {:?}, {:?})",
+                        subsampling_x,
+                        subsampling_y,
+                        bit_depth
+                    )),
+                    BitDepth::Depth10 => Ok(libva::VA_RT_FORMAT_YUV444_10),
+                    BitDepth::Depth12 => Ok(libva::VA_RT_FORMAT_YUV444_12),
+                }
             } else {
                 Err(anyhow!(
-                            "Unsupported (subsampling_x, subsampling_y, bit depth) combination for profile 3: ({:?}, {:?}, {:?})",
-                            subsampling_x,
-                            subsampling_y,
-                            bit_depth
-                        ))
+                    "Unsupported (subsampling_x, subsampling_y, bit depth) combination for profile 3: ({:?}, {:?}, {:?})",
+                    subsampling_x,
+                    subsampling_y,
+                    bit_depth
+                ))
             }
         }
     }
@@ -305,17 +305,17 @@ mod tests {
     use libva::PictureParameter;
     use libva::SliceParameter;
 
+    use crate::DecodedFormat;
     use crate::bitstream_utils::IvfIterator;
-    use crate::codec::vp9::parser::Parser;
     use crate::codec::vp9::parser::MAX_SEGMENTS;
     use crate::codec::vp9::parser::NUM_REF_FRAMES;
-    use crate::decoder::stateless::tests::test_decode_stream;
-    use crate::decoder::stateless::tests::TestStream;
-    use crate::decoder::stateless::vp9::Segmentation;
+    use crate::codec::vp9::parser::Parser;
     use crate::decoder::BlockingMode;
+    use crate::decoder::stateless::tests::TestStream;
+    use crate::decoder::stateless::tests::test_decode_stream;
+    use crate::decoder::stateless::vp9::Segmentation;
     use crate::utils::simple_playback_loop;
     use crate::utils::simple_playback_loop_owned_frames;
-    use crate::DecodedFormat;
 
     use super::*;
 

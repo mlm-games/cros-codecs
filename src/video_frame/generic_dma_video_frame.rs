@@ -13,27 +13,27 @@ use std::num::NonZeroUsize;
 use std::os::fd::{AsFd, AsRawFd, BorrowedFd};
 use std::ptr::NonNull;
 use std::slice;
-use std::sync::atomic::{fence, Ordering};
 #[cfg(any(feature = "vaapi", feature = "v4l2"))]
 use std::sync::Arc;
+use std::sync::atomic::{Ordering, fence};
 
-use crate::video_frame::{ReadMapping, VideoFrame, WriteMapping};
 #[cfg(feature = "vaapi")]
 use crate::DecodedFormat;
+use crate::video_frame::{ReadMapping, VideoFrame, WriteMapping};
 use crate::{Fourcc, FrameLayout, Resolution};
 
 use drm_fourcc::DrmModifier;
 use nix::errno::Errno;
 use nix::ioctl_write_ptr;
 use nix::libc;
-use nix::poll::poll;
 use nix::poll::PollFd;
 use nix::poll::PollFlags;
 use nix::poll::PollTimeout;
-use nix::sys::mman::mmap;
-use nix::sys::mman::munmap;
+use nix::poll::poll;
 use nix::sys::mman::MapFlags;
 use nix::sys::mman::ProtFlags;
+use nix::sys::mman::mmap;
+use nix::sys::mman::munmap;
 use nix::unistd::dup;
 
 #[cfg(feature = "vaapi")]
@@ -42,6 +42,8 @@ use libva::{
     VADRMPRIMESurfaceDescriptorLayer, VADRMPRIMESurfaceDescriptorObject,
 };
 #[cfg(feature = "v4l2")]
+use v4l2r::Format;
+#[cfg(feature = "v4l2")]
 use v4l2r::bindings::v4l2_plane;
 #[cfg(feature = "v4l2")]
 use v4l2r::device::Device;
@@ -49,8 +51,6 @@ use v4l2r::device::Device;
 use v4l2r::ioctl::V4l2Buffer;
 #[cfg(feature = "v4l2")]
 use v4l2r::memory::DmaBufHandle;
-#[cfg(feature = "v4l2")]
-use v4l2r::Format;
 
 // UNSAFE: This file uses tons of unsafe code because we are directly interacting with the kernel's
 // DMA infrastructure. The core assumption is that GenericDmaVideoFrame is initialized with a

@@ -7,18 +7,20 @@ use std::rc::Rc;
 
 use v4l2r::ioctl;
 
+use crate::Fourcc;
+use crate::Rect;
+use crate::Resolution;
+use crate::backend::v4l2::decoder::ADDITIONAL_REFERENCE_FRAME_BUFFER;
+use crate::backend::v4l2::decoder::V4l2StreamInfo;
 use crate::backend::v4l2::decoder::stateless::V4l2Picture;
 use crate::backend::v4l2::decoder::stateless::V4l2StatelessDecoderBackend;
 use crate::backend::v4l2::decoder::stateless::V4l2StatelessDecoderHandle;
-use crate::decoder::DecodedHandle;
-use crate::backend::v4l2::decoder::V4l2StreamInfo;
-use crate::backend::v4l2::decoder::ADDITIONAL_REFERENCE_FRAME_BUFFER;
 use crate::codec::av1::parser::FrameHeaderObu;
+use crate::codec::av1::parser::NUM_REF_FRAMES;
 use crate::codec::av1::parser::StreamInfo;
 use crate::codec::av1::parser::TileGroupObu;
-use crate::codec::av1::parser::NUM_REF_FRAMES;
-use crate::decoder::stateless::av1::Av1;
-use crate::decoder::stateless::av1::StatelessAV1DecoderBackend;
+use crate::decoder::BlockingMode;
+use crate::decoder::DecodedHandle;
 use crate::decoder::stateless::NewPictureError;
 use crate::decoder::stateless::NewPictureResult;
 use crate::decoder::stateless::NewStatelessDecoderError;
@@ -26,7 +28,8 @@ use crate::decoder::stateless::StatelessBackendError;
 use crate::decoder::stateless::StatelessBackendResult;
 use crate::decoder::stateless::StatelessDecoder;
 use crate::decoder::stateless::StatelessDecoderBackendPicture;
-use crate::decoder::BlockingMode;
+use crate::decoder::stateless::av1::Av1;
+use crate::decoder::stateless::av1::StatelessAV1DecoderBackend;
 use crate::device::v4l2::stateless::controls::av1::Av1V4l2FilmGrainCtrl;
 use crate::device::v4l2::stateless::controls::av1::Av1V4l2FrameCtrl;
 use crate::device::v4l2::stateless::controls::av1::Av1V4l2SequenceCtrl;
@@ -36,9 +39,6 @@ use crate::device::v4l2::stateless::controls::av1::V4l2CtrlAv1FrameParams;
 use crate::device::v4l2::stateless::controls::av1::V4l2CtrlAv1SequenceParams;
 use crate::device::v4l2::stateless::controls::av1::V4l2CtrlAv1TileGroupEntryParams;
 use crate::video_frame::VideoFrame;
-use crate::Fourcc;
-use crate::Rect;
-use crate::Resolution;
 
 impl V4l2StreamInfo for &StreamInfo {
     fn min_num_frames(&self) -> usize {

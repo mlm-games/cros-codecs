@@ -8,22 +8,22 @@ use std::fmt::Debug;
 use std::iter::zip;
 use std::sync::Arc;
 
+use crate::Fourcc;
+use crate::Resolution;
 use crate::utils::align_up;
 use crate::video_frame::ReadMapping;
 use crate::video_frame::VideoFrame;
 use crate::video_frame::WriteMapping;
-use crate::Fourcc;
-use crate::Resolution;
 
 use crate::v4l2r::device::Device;
 #[cfg(feature = "vaapi")]
 use libva::Display;
 #[cfg(feature = "vaapi")]
 use libva::Surface;
-use v4l2r::bindings::v4l2_plane;
-use v4l2r::ioctl::{mmap, PlaneMapping, V4l2Buffer};
-use v4l2r::memory::{MmapHandle, PlaneHandle};
 use v4l2r::Format;
+use v4l2r::bindings::v4l2_plane;
+use v4l2r::ioctl::{PlaneMapping, V4l2Buffer, mmap};
+use v4l2r::memory::{MmapHandle, PlaneHandle};
 
 pub struct V4l2MmapMapping {
     planes: Vec<PlaneMapping>,
@@ -223,10 +223,7 @@ impl VideoFrame for V4l2MmapVideoFrame {
     }
 
     #[cfg(feature = "vaapi")]
-    fn to_native_handle(
-        &self,
-        _display: &Arc<Display>,
-    ) -> Result<Self::VaapiHandle, String> {
+    fn to_native_handle(&self, _display: &Arc<Display>) -> Result<Self::VaapiHandle, String> {
         Err("V4L2 mmap frames are not compatible with VA-API".to_string())
     }
 }

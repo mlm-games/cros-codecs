@@ -9,12 +9,12 @@ use std::rc::Weak;
 
 use log::debug;
 
+use crate::Resolution;
 use crate::codec::h264::parser::MaxLongTermFrameIdx;
 use crate::codec::h264::parser::RefPicMarking;
 use crate::codec::h264::parser::Slice;
 use crate::codec::h264::parser::SliceType;
 use crate::codec::h264::parser::Sps;
-use crate::Resolution;
 
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub enum Field {
@@ -165,11 +165,7 @@ impl PictureData {
         };
 
         let field = if hdr.field_pic_flag {
-            if hdr.bottom_field_flag {
-                Field::Bottom
-            } else {
-                Field::Top
-            }
+            if hdr.bottom_field_flag { Field::Bottom } else { Field::Top }
         } else {
             Field::Frame
         };
@@ -298,11 +294,7 @@ impl PictureData {
     }
 
     pub fn pic_num_f(&self, max_pic_num: i32) -> i32 {
-        if !matches!(self.reference(), Reference::LongTerm) {
-            self.pic_num
-        } else {
-            max_pic_num
-        }
+        if !matches!(self.reference(), Reference::LongTerm) { self.pic_num } else { max_pic_num }
     }
 
     pub fn long_term_pic_num_f(&self, max_long_term_frame_idx: MaxLongTermFrameIdx) -> u32 {

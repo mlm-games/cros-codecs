@@ -24,20 +24,20 @@ use libva::VAEntrypoint::VAEntrypointEncSliceLP;
 use libva::VAProfile;
 use libva::VASurfaceStatus;
 
+use crate::Fourcc;
+use crate::Resolution;
+use crate::backend::vaapi::FORMAT_MAP;
 use crate::backend::vaapi::surface_pool::PooledVaSurface;
 use crate::backend::vaapi::surface_pool::VaSurfacePool;
-use crate::backend::vaapi::FORMAT_MAP;
 use crate::decoder::FramePool;
+use crate::encoder::FrameMetadata;
+use crate::encoder::RateControl;
+use crate::encoder::Tunings;
 use crate::encoder::stateless::BackendPromise;
 use crate::encoder::stateless::StatelessBackendError;
 use crate::encoder::stateless::StatelessBackendResult;
 use crate::encoder::stateless::StatelessEncoderBackendImport;
-use crate::encoder::FrameMetadata;
-use crate::encoder::RateControl;
-use crate::encoder::Tunings;
 use crate::video_frame::VideoFrame;
-use crate::Fourcc;
-use crate::Resolution;
 
 /// The number of frames that encoder backend should initialize scratch pool with.
 const INITIAL_SCRATCH_POOL_SIZE: usize = 16;
@@ -453,11 +453,11 @@ pub(crate) mod tests {
     use libva::VA_FOURCC_P010;
 
     use super::*;
+    use crate::FrameLayout;
+    use crate::encoder::FrameMetadata;
     use crate::encoder::tests::fill_test_frame_nv12;
     use crate::encoder::tests::fill_test_frame_p010;
     use crate::encoder::tests::get_test_frame_t;
-    use crate::encoder::FrameMetadata;
-    use crate::FrameLayout;
 
     fn map_surface<'a, M: SurfaceMemoryDescriptor>(
         display: &Rc<Display>,

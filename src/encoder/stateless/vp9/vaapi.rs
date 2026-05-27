@@ -17,40 +17,40 @@ use libva::EncSequenceParameterBufferVP9;
 use libva::Picture;
 use libva::Surface;
 use libva::SurfaceMemoryDescriptor;
+use libva::VA_INVALID_SURFACE;
 use libva::VAProfile::VAProfileVP9Profile0;
 use libva::VAProfile::VAProfileVP9Profile2;
 use libva::VP9EncPicFlags;
 use libva::VP9EncRefFlags;
-use libva::VA_INVALID_SURFACE;
 
-use crate::backend::vaapi::encoder::tunings_to_libva_rc;
+use crate::BlockingMode;
+use crate::Fourcc;
+use crate::Resolution;
 use crate::backend::vaapi::encoder::CodedOutputPromise;
 use crate::backend::vaapi::encoder::Reconstructed;
 use crate::backend::vaapi::encoder::VaapiBackend;
+use crate::backend::vaapi::encoder::tunings_to_libva_rc;
+use crate::codec::vp9::parser::ALTREF_FRAME;
 use crate::codec::vp9::parser::BitDepth;
 use crate::codec::vp9::parser::FrameType;
-use crate::codec::vp9::parser::InterpolationFilter;
-use crate::codec::vp9::parser::ALTREF_FRAME;
 use crate::codec::vp9::parser::GOLDEN_FRAME;
+use crate::codec::vp9::parser::InterpolationFilter;
 use crate::codec::vp9::parser::LAST_FRAME;
 use crate::codec::vp9::parser::NUM_REF_FRAMES;
-use crate::encoder::stateless::vp9::predictor::MAX_Q_IDX;
-use crate::encoder::stateless::vp9::predictor::MIN_Q_IDX;
+use crate::encoder::EncodeResult;
+use crate::encoder::RateControl;
+use crate::encoder::stateless::ReadyPromise;
+use crate::encoder::stateless::StatelessBackendResult;
+use crate::encoder::stateless::StatelessVideoEncoderBackend;
 use crate::encoder::stateless::vp9::BackendRequest;
 use crate::encoder::stateless::vp9::ReferenceUse;
 use crate::encoder::stateless::vp9::StatelessEncoder;
 use crate::encoder::stateless::vp9::StatelessVP9EncoderBackend;
-use crate::encoder::stateless::ReadyPromise;
-use crate::encoder::stateless::StatelessBackendResult;
-use crate::encoder::stateless::StatelessVideoEncoderBackend;
+use crate::encoder::stateless::vp9::predictor::MAX_Q_IDX;
+use crate::encoder::stateless::vp9::predictor::MIN_Q_IDX;
 use crate::encoder::vp9::EncoderConfig;
 use crate::encoder::vp9::VP9;
-use crate::encoder::EncodeResult;
-use crate::encoder::RateControl;
 use crate::video_frame::VideoFrame;
-use crate::BlockingMode;
-use crate::Fourcc;
-use crate::Resolution;
 
 impl<M, Handle> StatelessVideoEncoderBackend<VP9> for VaapiBackend<M, Handle>
 where
@@ -289,31 +289,31 @@ pub(super) mod tests {
 
     use libva::Display;
     use libva::UsageHint;
-    use libva::VAEntrypoint::VAEntrypointEncSliceLP;
     use libva::VA_RT_FORMAT_YUV420;
     use libva::VA_RT_FORMAT_YUV420_10;
+    use libva::VAEntrypoint::VAEntrypointEncSliceLP;
 
     use super::*;
-    use crate::backend::vaapi::encoder::tests::upload_test_frame_nv12;
-    use crate::backend::vaapi::encoder::tests::TestFrameGenerator;
+    use crate::FrameLayout;
+    use crate::PlaneLayout;
+    use crate::Resolution;
     use crate::backend::vaapi::encoder::VaapiBackend;
+    use crate::backend::vaapi::encoder::tests::TestFrameGenerator;
+    use crate::backend::vaapi::encoder::tests::upload_test_frame_nv12;
     use crate::backend::vaapi::surface_pool::PooledVaSurface;
     use crate::backend::vaapi::surface_pool::VaSurfacePool;
     use crate::bitstream_utils::IvfFileHeader;
     use crate::bitstream_utils::IvfFrameHeader;
     use crate::codec::vp9::parser::Header;
     use crate::decoder::FramePool;
+    use crate::encoder::FrameMetadata;
+    use crate::encoder::Tunings;
     use crate::encoder::simple_encode_loop;
+    use crate::encoder::stateless::BackendPromise;
+    use crate::encoder::stateless::StatelessEncoderBackendImport;
     use crate::encoder::stateless::vp9::BackendRequest;
     use crate::encoder::stateless::vp9::EncoderConfig;
     use crate::encoder::stateless::vp9::StatelessEncoder;
-    use crate::encoder::stateless::BackendPromise;
-    use crate::encoder::stateless::StatelessEncoderBackendImport;
-    use crate::encoder::FrameMetadata;
-    use crate::encoder::Tunings;
-    use crate::FrameLayout;
-    use crate::PlaneLayout;
-    use crate::Resolution;
 
     #[test]
     // Ignore this test by default as it requires libva-compatible hardware.
@@ -355,7 +355,7 @@ pub(super) mod tests {
         let mut surfaces = display
             .create_surfaces(
                 VA_RT_FORMAT_YUV420,
-                Some(frame_layout.format.0 .0),
+                Some(frame_layout.format.0.0),
                 WIDTH,
                 HEIGHT,
                 Some(UsageHint::USAGE_HINT_ENCODER),

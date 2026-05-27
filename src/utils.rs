@@ -15,15 +15,15 @@ use std::ops::Sub;
 use std::os::fd::OwnedFd;
 use std::time::Duration;
 
-use crate::decoder::stateless::DecodeError;
-use crate::decoder::stateless::StatelessVideoDecoder;
-use crate::decoder::BlockingMode;
-use crate::decoder::DecodedHandle;
-use crate::decoder::DecoderEvent;
 use crate::Fourcc;
 use crate::FrameLayout;
 use crate::PlaneLayout;
 use crate::Resolution;
+use crate::decoder::BlockingMode;
+use crate::decoder::DecodedHandle;
+use crate::decoder::DecoderEvent;
+use crate::decoder::stateless::DecodeError;
+use crate::decoder::stateless::StatelessVideoDecoder;
 
 /// Simple decoding loop that plays the stream once from start to finish.
 #[allow(clippy::type_complexity)]

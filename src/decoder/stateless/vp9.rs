@@ -14,14 +14,19 @@ use std::os::fd::BorrowedFd;
 
 use log::debug;
 
+use crate::Resolution;
 use crate::codec::vp9::parser::BitDepth;
 use crate::codec::vp9::parser::Frame;
 use crate::codec::vp9::parser::Header;
+use crate::codec::vp9::parser::MAX_SEGMENTS;
+use crate::codec::vp9::parser::NUM_REF_FRAMES;
 use crate::codec::vp9::parser::Parser;
 use crate::codec::vp9::parser::Profile;
 use crate::codec::vp9::parser::Segmentation;
-use crate::codec::vp9::parser::MAX_SEGMENTS;
-use crate::codec::vp9::parser::NUM_REF_FRAMES;
+use crate::decoder::BlockingMode;
+use crate::decoder::DecodedHandle;
+use crate::decoder::DecoderEvent;
+use crate::decoder::StreamInfo;
 use crate::decoder::stateless::DecodeError;
 use crate::decoder::stateless::DecodingState;
 use crate::decoder::stateless::NewPictureError;
@@ -32,11 +37,6 @@ use crate::decoder::stateless::StatelessDecoder;
 use crate::decoder::stateless::StatelessDecoderBackend;
 use crate::decoder::stateless::StatelessDecoderBackendPicture;
 use crate::decoder::stateless::StatelessVideoDecoder;
-use crate::decoder::BlockingMode;
-use crate::decoder::DecodedHandle;
-use crate::decoder::DecoderEvent;
-use crate::decoder::StreamInfo;
-use crate::Resolution;
 
 /// Stateless backend methods specific to VP9.
 pub trait StatelessVp9DecoderBackend:
@@ -359,15 +359,15 @@ where
 
 #[cfg(test)]
 pub mod tests {
+    use crate::DecodedFormat;
     use crate::bitstream_utils::IvfIterator;
-    use crate::decoder::stateless::tests::test_decode_stream;
-    use crate::decoder::stateless::tests::TestStream;
-    use crate::decoder::stateless::vp9::Vp9;
-    use crate::decoder::stateless::StatelessDecoder;
     use crate::decoder::BlockingMode;
+    use crate::decoder::stateless::StatelessDecoder;
+    use crate::decoder::stateless::tests::TestStream;
+    use crate::decoder::stateless::tests::test_decode_stream;
+    use crate::decoder::stateless::vp9::Vp9;
     use crate::utils::simple_playback_loop;
     use crate::utils::simple_playback_loop_owned_frames;
-    use crate::DecodedFormat;
 
     /// Run `test` using the dummy decoder, in both blocking and non-blocking modes.
     fn test_decoder_dummy(test: &TestStream, blocking_mode: BlockingMode) {

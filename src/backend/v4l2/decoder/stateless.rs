@@ -6,18 +6,18 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use crate::backend::v4l2::decoder::V4l2StreamInfo;
-use crate::decoder::stateless::NewStatelessDecoderError;
-use crate::decoder::stateless::StatelessBackendResult;
-use crate::decoder::stateless::StatelessDecoderBackend;
-use crate::decoder::DecodedHandle;
-use crate::decoder::StreamInfo;
-use crate::device::v4l2::stateless::device::V4l2Device;
-use crate::device::v4l2::stateless::request::V4l2Request;
-use crate::video_frame::VideoFrame;
 use crate::DecodedFormat;
 use crate::Fourcc;
 use crate::Resolution;
+use crate::backend::v4l2::decoder::V4l2StreamInfo;
+use crate::decoder::DecodedHandle;
+use crate::decoder::StreamInfo;
+use crate::decoder::stateless::NewStatelessDecoderError;
+use crate::decoder::stateless::StatelessBackendResult;
+use crate::decoder::stateless::StatelessDecoderBackend;
+use crate::device::v4l2::stateless::device::V4l2Device;
+use crate::device::v4l2::stateless::request::V4l2Request;
+use crate::video_frame::VideoFrame;
 
 pub struct V4l2Picture<V: VideoFrame> {
     request: Rc<RefCell<V4l2Request<V>>>,

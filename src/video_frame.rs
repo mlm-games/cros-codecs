@@ -7,11 +7,11 @@ use std::fmt::Debug;
 #[cfg(any(feature = "vaapi", feature = "v4l2"))]
 use std::sync::Arc;
 
-use crate::utils::align_up;
 use crate::DecodedFormat;
 use crate::EncodedFormat;
 use crate::Fourcc;
 use crate::Resolution;
+use crate::utils::align_up;
 
 pub mod frame_pool;
 #[cfg(feature = "gbm")]
@@ -24,6 +24,8 @@ pub mod v4l2_mmap_video_frame;
 #[cfg(feature = "vaapi")]
 use libva::{Display, Surface, SurfaceMemoryDescriptor};
 #[cfg(feature = "v4l2")]
+use v4l2r::Format;
+#[cfg(feature = "v4l2")]
 use v4l2r::bindings::v4l2_plane;
 #[cfg(feature = "v4l2")]
 use v4l2r::device::Device;
@@ -31,8 +33,6 @@ use v4l2r::device::Device;
 use v4l2r::ioctl::V4l2Buffer;
 #[cfg(feature = "v4l2")]
 use v4l2r::memory::{BufferHandles, Memory, MemoryType, PlaneHandle, PrimitiveBufferHandles};
-#[cfg(feature = "v4l2")]
-use v4l2r::Format;
 
 pub const Y_PLANE: usize = 0;
 pub const UV_PLANE: usize = 1;

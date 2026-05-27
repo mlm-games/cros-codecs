@@ -13,9 +13,9 @@ use libva::Display;
 use libva::VAConfigAttrib;
 use libva::VAConfigAttribType;
 
+use crate::DecodedFormat;
 use crate::utils::DmabufFrame;
 use crate::utils::UserPtrFrame;
-use crate::DecodedFormat;
 
 pub mod decoder;
 pub mod encoder;

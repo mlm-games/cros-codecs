@@ -14,18 +14,18 @@ use std::ptr;
 use std::slice;
 use std::sync::Arc;
 
-use crate::utils::align_up;
-use crate::utils::buffer_size_for_area;
-use crate::video_frame::generic_dma_video_frame::GenericDmaVideoFrame;
-use crate::video_frame::ReadMapping;
-use crate::video_frame::VideoFrame;
-use crate::video_frame::WriteMapping;
 #[cfg(feature = "vaapi")]
 use crate::DecodedFormat;
 use crate::Fourcc;
 use crate::FrameLayout;
 use crate::PlaneLayout;
 use crate::Resolution;
+use crate::utils::align_up;
+use crate::utils::buffer_size_for_area;
+use crate::video_frame::ReadMapping;
+use crate::video_frame::VideoFrame;
+use crate::video_frame::WriteMapping;
+use crate::video_frame::generic_dma_video_frame::GenericDmaVideoFrame;
 
 use drm_fourcc::DrmFourcc;
 #[cfg(feature = "v4l2")]
@@ -45,6 +45,8 @@ use libva::{
 };
 use nix::libc;
 #[cfg(feature = "v4l2")]
+use v4l2r::Format;
+#[cfg(feature = "v4l2")]
 use v4l2r::bindings::v4l2_plane;
 #[cfg(feature = "v4l2")]
 use v4l2r::device::Device;
@@ -52,8 +54,6 @@ use v4l2r::device::Device;
 use v4l2r::ioctl::V4l2Buffer;
 #[cfg(feature = "v4l2")]
 use v4l2r::memory::{DmaBufHandle, DmaBufSource, PlaneHandle};
-#[cfg(feature = "v4l2")]
-use v4l2r::Format;
 
 // The gbm crate's wrapper for map() doesn't have the lifetime semantics that we want, so we need
 // to implement our own.
@@ -237,7 +237,7 @@ impl GbmVideoFrame {
     pub fn to_generic_dma_video_frame(self) -> Result<GenericDmaVideoFrame, String> {
         let planes: Vec<PlaneLayout> = zip(self.get_plane_offset(), self.get_plane_pitch())
             .enumerate()
-            .map(|x| PlaneLayout { buffer_index: x.0, offset: x.1 .0, stride: x.1 .1 })
+            .map(|x| PlaneLayout { buffer_index: x.0, offset: x.1.0, stride: x.1.1 })
             .collect();
         // SAFETY: gbm_bo_get_fd returns a new, owned FD every time it is called, so this should be
         // safe as long as self.bo contains valid buffer objects.

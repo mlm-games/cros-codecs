@@ -9,7 +9,7 @@ use std::sync::Arc;
 use v4l2r::device::queue::Queue;
 use v4l2r::device::{Device as VideoDevice, DeviceConfig};
 use v4l2r::ioctl::Capability;
-use v4l2r::nix::fcntl::{open, OFlag};
+use v4l2r::nix::fcntl::{OFlag, open};
 use v4l2r::nix::sys::stat::Mode;
 use zerocopy::FromZeros;
 

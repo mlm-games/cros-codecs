@@ -5,19 +5,19 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use crate::EncodedFormat;
+use crate::Fourcc;
 use crate::c2_wrapper::c2_decoder::C2DecoderBackend;
+use crate::decoder::BlockingMode;
+use crate::decoder::stateless::DynStatelessVideoDecoder;
+use crate::decoder::stateless::StatelessDecoder;
+use crate::decoder::stateless::StatelessVideoDecoder;
 use crate::decoder::stateless::av1::Av1;
 use crate::decoder::stateless::h264::H264;
 use crate::decoder::stateless::h265::H265;
 use crate::decoder::stateless::vp8::Vp8;
 use crate::decoder::stateless::vp9::Vp9;
-use crate::decoder::stateless::DynStatelessVideoDecoder;
-use crate::decoder::stateless::StatelessDecoder;
-use crate::decoder::stateless::StatelessVideoDecoder;
-use crate::decoder::BlockingMode;
 use crate::video_frame::VideoFrame;
-use crate::EncodedFormat;
-use crate::Fourcc;
 
 #[derive(Clone, Debug)]
 pub struct C2VaapiDecoderOptions {

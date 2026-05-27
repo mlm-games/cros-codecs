@@ -2,15 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-use v4l2r::bindings::v4l2_ctrl_h264_decode_params;
-use v4l2r::bindings::v4l2_ctrl_h264_pps;
-use v4l2r::bindings::v4l2_ctrl_h264_scaling_matrix;
-use v4l2r::bindings::v4l2_ctrl_h264_sps;
-use v4l2r::bindings::v4l2_h264_dpb_entry;
-use v4l2r::bindings::v4l2_stateless_h264_decode_mode_V4L2_STATELESS_H264_DECODE_MODE_FRAME_BASED as V4L2_STATELESS_H264_DECODE_MODE_FRAME_BASED;
-use v4l2r::bindings::v4l2_stateless_h264_decode_mode_V4L2_STATELESS_H264_DECODE_MODE_SLICE_BASED as V4L2_STATELESS_H264_DECODE_MODE_SLICE_BASED;
-use v4l2r::bindings::v4l2_stateless_h264_start_code_V4L2_STATELESS_H264_START_CODE_ANNEX_B as V4L2_STATELESS_H264_START_CODE_ANNEX_B;
-use v4l2r::bindings::v4l2_stateless_h264_start_code_V4L2_STATELESS_H264_START_CODE_NONE as V4L2_STATELESS_H264_START_CODE_NONE;
 use v4l2r::bindings::V4L2_H264_DECODE_PARAM_FLAG_BOTTOM_FIELD;
 use v4l2r::bindings::V4L2_H264_DECODE_PARAM_FLAG_FIELD_PIC;
 use v4l2r::bindings::V4L2_H264_DECODE_PARAM_FLAG_IDR_PIC;
@@ -39,10 +30,19 @@ use v4l2r::bindings::V4L2_H264_SPS_FLAG_GAPS_IN_FRAME_NUM_VALUE_ALLOWED;
 use v4l2r::bindings::V4L2_H264_SPS_FLAG_MB_ADAPTIVE_FRAME_FIELD;
 use v4l2r::bindings::V4L2_H264_SPS_FLAG_QPPRIME_Y_ZERO_TRANSFORM_BYPASS;
 use v4l2r::bindings::V4L2_H264_SPS_FLAG_SEPARATE_COLOUR_PLANE;
+use v4l2r::bindings::v4l2_ctrl_h264_decode_params;
+use v4l2r::bindings::v4l2_ctrl_h264_pps;
+use v4l2r::bindings::v4l2_ctrl_h264_scaling_matrix;
+use v4l2r::bindings::v4l2_ctrl_h264_sps;
+use v4l2r::bindings::v4l2_h264_dpb_entry;
+use v4l2r::bindings::v4l2_stateless_h264_decode_mode_V4L2_STATELESS_H264_DECODE_MODE_FRAME_BASED as V4L2_STATELESS_H264_DECODE_MODE_FRAME_BASED;
+use v4l2r::bindings::v4l2_stateless_h264_decode_mode_V4L2_STATELESS_H264_DECODE_MODE_SLICE_BASED as V4L2_STATELESS_H264_DECODE_MODE_SLICE_BASED;
+use v4l2r::bindings::v4l2_stateless_h264_start_code_V4L2_STATELESS_H264_START_CODE_ANNEX_B as V4L2_STATELESS_H264_START_CODE_ANNEX_B;
+use v4l2r::bindings::v4l2_stateless_h264_start_code_V4L2_STATELESS_H264_START_CODE_NONE as V4L2_STATELESS_H264_START_CODE_NONE;
+use v4l2r::controls::SafeExtControl;
 use v4l2r::controls::codec::H264DecodeMode;
 use v4l2r::controls::codec::H264DecodeParams;
 use v4l2r::controls::codec::H264StartCode;
-use v4l2r::controls::SafeExtControl;
 
 use crate::codec::h264::parser::Pps;
 use crate::codec::h264::parser::SliceHeader;

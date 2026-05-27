@@ -13,14 +13,14 @@ use crate::backend::dummy::decoder::Handle;
 use crate::codec::vp9::parser::Header;
 use crate::codec::vp9::parser::MAX_SEGMENTS;
 use crate::codec::vp9::parser::NUM_REF_FRAMES;
-use crate::decoder::stateless::vp9::Segmentation;
-use crate::decoder::stateless::vp9::StatelessVp9DecoderBackend;
-use crate::decoder::stateless::vp9::Vp9;
+use crate::decoder::BlockingMode;
 use crate::decoder::stateless::NewPictureResult;
 use crate::decoder::stateless::NewStatelessDecoderError;
 use crate::decoder::stateless::StatelessBackendResult;
 use crate::decoder::stateless::StatelessDecoder;
-use crate::decoder::BlockingMode;
+use crate::decoder::stateless::vp9::Segmentation;
+use crate::decoder::stateless::vp9::StatelessVp9DecoderBackend;
+use crate::decoder::stateless::vp9::Vp9;
 
 impl StatelessVp9DecoderBackend for Backend {
     fn new_sequence(&mut self, _: &Header) -> StatelessBackendResult<()> {

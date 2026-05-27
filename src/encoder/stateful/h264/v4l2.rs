@@ -13,6 +13,8 @@ use v4l2r::controls::codec::VideoH264Profile;
 use v4l2r::controls::codec::VideoPrependSpsPpsToIdr;
 use v4l2r::device::Device;
 
+use crate::Fourcc;
+use crate::Resolution;
 use crate::backend::v4l2::encoder::CaptureBuffers;
 use crate::backend::v4l2::encoder::ControlError;
 use crate::backend::v4l2::encoder::EncoderCodec;
@@ -21,13 +23,11 @@ use crate::backend::v4l2::encoder::OutputBufferHandle;
 use crate::backend::v4l2::encoder::V4L2Backend;
 use crate::codec::h264::parser::Level;
 use crate::codec::h264::parser::Profile;
+use crate::encoder::PredictionStructure;
+use crate::encoder::Tunings;
 use crate::encoder::h264::EncoderConfig;
 use crate::encoder::h264::H264;
 use crate::encoder::stateful::StatefulEncoder;
-use crate::encoder::PredictionStructure;
-use crate::encoder::Tunings;
-use crate::Fourcc;
-use crate::Resolution;
 
 const PIXEL_FORMAT_H264: v4l2r::PixelFormat = v4l2r::PixelFormat::from_fourcc(b"H264");
 
@@ -160,18 +160,18 @@ mod tests {
     use v4l2r::device::Device;
     use v4l2r::device::DeviceConfig;
 
+    use crate::Resolution;
+    use crate::backend::v4l2::encoder::MmapingCapture;
     use crate::backend::v4l2::encoder::find_device_with_capture;
-    use crate::backend::v4l2::encoder::tests::perform_v4l2_encoder_dmabuf_test;
-    use crate::backend::v4l2::encoder::tests::perform_v4l2_encoder_mmap_test;
     use crate::backend::v4l2::encoder::tests::BoPoolAllocator;
     use crate::backend::v4l2::encoder::tests::GbmDevice;
+    use crate::backend::v4l2::encoder::tests::perform_v4l2_encoder_dmabuf_test;
+    use crate::backend::v4l2::encoder::tests::perform_v4l2_encoder_mmap_test;
     use crate::backend::v4l2::encoder::v4l2_format_to_frame_layout;
-    use crate::backend::v4l2::encoder::MmapingCapture;
+    use crate::encoder::RateControl;
     use crate::encoder::simple_encode_loop;
     use crate::encoder::tests::userptr_test_frame_generator;
-    use crate::encoder::RateControl;
     use crate::utils::DmabufFrame;
-    use crate::Resolution;
 
     #[ignore]
     // Ignore this test by default as it requires v4l2m2m-compatible hardware.

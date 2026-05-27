@@ -13,9 +13,10 @@ use std::os::fd::AsFd;
 use std::os::fd::BorrowedFd;
 use std::rc::Rc;
 
-use anyhow::anyhow;
 use anyhow::Context;
+use anyhow::anyhow;
 
+use crate::Resolution;
 use crate::codec::h265::dpb::Dpb;
 use crate::codec::h265::dpb::DpbEntry;
 use crate::codec::h265::parser::Nalu;
@@ -28,6 +29,10 @@ use crate::codec::h265::parser::SliceHeader;
 use crate::codec::h265::parser::Sps;
 use crate::codec::h265::picture::PictureData;
 use crate::codec::h265::picture::Reference;
+use crate::decoder::BlockingMode;
+use crate::decoder::DecodedHandle;
+use crate::decoder::DecoderEvent;
+use crate::decoder::StreamInfo;
 use crate::decoder::stateless::DecodeError;
 use crate::decoder::stateless::DecodingState;
 use crate::decoder::stateless::NewPictureResult;
@@ -37,11 +42,6 @@ use crate::decoder::stateless::StatelessDecoder;
 use crate::decoder::stateless::StatelessDecoderBackend;
 use crate::decoder::stateless::StatelessDecoderBackendPicture;
 use crate::decoder::stateless::StatelessVideoDecoder;
-use crate::decoder::BlockingMode;
-use crate::decoder::DecodedHandle;
-use crate::decoder::DecoderEvent;
-use crate::decoder::StreamInfo;
-use crate::Resolution;
 
 const MAX_DPB_SIZE: usize = 16;
 /// Stateless backend methods specific to H.265.
@@ -726,7 +726,9 @@ where
                 total_rps_len,
                 dpb_len
             );
-            log::warn!("A reference pic may be in more than one RPS list. This is against the specification. See 8.3.2. NOTE 5")
+            log::warn!(
+                "A reference pic may be in more than one RPS list. This is against the specification. See 8.3.2. NOTE 5"
+            )
         }
 
         // According to Chromium, unavailable reference pictures are handled by
@@ -1224,16 +1226,16 @@ where
 #[cfg(test)]
 pub mod tests {
 
+    use crate::DecodedFormat;
     use crate::bitstream_utils::NalIterator;
     use crate::codec::h265::parser::Nalu;
-    use crate::decoder::stateless::h265::H265;
-    use crate::decoder::stateless::tests::test_decode_stream;
-    use crate::decoder::stateless::tests::TestStream;
-    use crate::decoder::stateless::StatelessDecoder;
     use crate::decoder::BlockingMode;
+    use crate::decoder::stateless::StatelessDecoder;
+    use crate::decoder::stateless::h265::H265;
+    use crate::decoder::stateless::tests::TestStream;
+    use crate::decoder::stateless::tests::test_decode_stream;
     use crate::utils::simple_playback_loop;
     use crate::utils::simple_playback_loop_owned_frames;
-    use crate::DecodedFormat;
 
     /// Run `test` using the dummy decoder, in both blocking and non-blocking modes.
     fn test_decoder_dummy(test: &TestStream, blocking_mode: BlockingMode) {

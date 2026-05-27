@@ -18,13 +18,13 @@ use crate::codec::h264::parser::Slice;
 use crate::codec::h264::parser::SliceHeader;
 use crate::codec::h264::parser::Sps;
 use crate::codec::h264::picture::PictureData;
-use crate::decoder::stateless::h264::StatelessH264DecoderBackend;
-use crate::decoder::stateless::h264::H264;
+use crate::decoder::BlockingMode;
 use crate::decoder::stateless::NewPictureResult;
 use crate::decoder::stateless::NewStatelessDecoderError;
 use crate::decoder::stateless::StatelessBackendResult;
 use crate::decoder::stateless::StatelessDecoder;
-use crate::decoder::BlockingMode;
+use crate::decoder::stateless::h264::H264;
+use crate::decoder::stateless::h264::StatelessH264DecoderBackend;
 
 impl StatelessH264DecoderBackend for Backend {
     fn new_sequence(&mut self, _: &Rc<Sps>) -> StatelessBackendResult<()> {

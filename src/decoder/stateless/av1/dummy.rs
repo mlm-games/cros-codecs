@@ -11,11 +11,11 @@ use crate::backend::dummy::decoder::Backend;
 use crate::backend::dummy::decoder::DummyFrame;
 use crate::backend::dummy::decoder::Handle;
 
-use crate::decoder::stateless::av1::Av1;
-use crate::decoder::stateless::av1::StatelessAV1DecoderBackend;
+use crate::decoder::BlockingMode;
 use crate::decoder::stateless::NewStatelessDecoderError;
 use crate::decoder::stateless::StatelessDecoder;
-use crate::decoder::BlockingMode;
+use crate::decoder::stateless::av1::Av1;
+use crate::decoder::stateless::av1::StatelessAV1DecoderBackend;
 
 impl StatelessAV1DecoderBackend for Backend {
     fn new_sequence(

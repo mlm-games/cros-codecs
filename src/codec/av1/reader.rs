@@ -93,11 +93,7 @@ impl<'a> Reader<'a> {
     pub fn read_delta_q(&mut self) -> Result<i32, String> {
         let delta_coded = self.0.read_bit()?;
 
-        if delta_coded {
-            self.read_su(7)
-        } else {
-            Ok(0)
-        }
+        if delta_coded { self.read_su(7) } else { Ok(0) }
     }
 
     pub fn more_data_in_bitstream(&mut self) -> bool {

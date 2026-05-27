@@ -640,11 +640,7 @@ impl ProfileTierLevel {
     }
 
     pub fn max_dpb_pic_buf(&self) -> u32 {
-        if self.general_profile_idc >= 1 && self.general_profile_idc <= 5 {
-            6
-        } else {
-            7
-        }
+        if self.general_profile_idc >= 1 && self.general_profile_idc <= 5 { 6 } else { 7 }
     }
 }
 

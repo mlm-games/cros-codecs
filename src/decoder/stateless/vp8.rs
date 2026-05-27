@@ -12,11 +12,16 @@ mod vaapi;
 use std::os::fd::AsFd;
 use std::os::fd::BorrowedFd;
 
+use crate::Resolution;
 use crate::codec::vp8::parser::Frame;
 use crate::codec::vp8::parser::Header;
 use crate::codec::vp8::parser::MbLfAdjustments;
 use crate::codec::vp8::parser::Parser;
 use crate::codec::vp8::parser::Segmentation;
+use crate::decoder::BlockingMode;
+use crate::decoder::DecodedHandle;
+use crate::decoder::DecoderEvent;
+use crate::decoder::StreamInfo;
 use crate::decoder::stateless::DecodeError;
 use crate::decoder::stateless::DecodingState;
 use crate::decoder::stateless::NewPictureResult;
@@ -26,11 +31,6 @@ use crate::decoder::stateless::StatelessDecoder;
 use crate::decoder::stateless::StatelessDecoderBackend;
 use crate::decoder::stateless::StatelessDecoderBackendPicture;
 use crate::decoder::stateless::StatelessVideoDecoder;
-use crate::decoder::BlockingMode;
-use crate::decoder::DecodedHandle;
-use crate::decoder::DecoderEvent;
-use crate::decoder::StreamInfo;
-use crate::Resolution;
 
 /// Stateless backend methods specific to VP8.
 pub trait StatelessVp8DecoderBackend:
@@ -314,15 +314,15 @@ where
 
 #[cfg(test)]
 pub mod tests {
+    use crate::DecodedFormat;
     use crate::bitstream_utils::IvfIterator;
-    use crate::decoder::stateless::tests::test_decode_stream;
-    use crate::decoder::stateless::tests::TestStream;
-    use crate::decoder::stateless::vp8::Vp8;
-    use crate::decoder::stateless::StatelessDecoder;
     use crate::decoder::BlockingMode;
+    use crate::decoder::stateless::StatelessDecoder;
+    use crate::decoder::stateless::tests::TestStream;
+    use crate::decoder::stateless::tests::test_decode_stream;
+    use crate::decoder::stateless::vp8::Vp8;
     use crate::utils::simple_playback_loop;
     use crate::utils::simple_playback_loop_owned_frames;
-    use crate::DecodedFormat;
 
     /// Run `test` using the dummy decoder, in both blocking and non-blocking modes.
     fn test_decoder_dummy(test: &TestStream, blocking_mode: BlockingMode) {

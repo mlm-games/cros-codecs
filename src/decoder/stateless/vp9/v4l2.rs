@@ -7,20 +7,23 @@ use std::rc::Rc;
 
 use v4l2r::ioctl;
 
+use crate::Fourcc;
+use crate::Rect;
+use crate::Resolution;
+use crate::backend::v4l2::decoder::ADDITIONAL_REFERENCE_FRAME_BUFFER;
+use crate::backend::v4l2::decoder::V4l2StreamInfo;
 use crate::backend::v4l2::decoder::stateless::V4l2Picture;
 use crate::backend::v4l2::decoder::stateless::V4l2StatelessDecoderBackend;
 use crate::backend::v4l2::decoder::stateless::V4l2StatelessDecoderHandle;
-use crate::backend::v4l2::decoder::V4l2StreamInfo;
-use crate::backend::v4l2::decoder::ADDITIONAL_REFERENCE_FRAME_BUFFER;
-use crate::codec::vp9::parser::Header;
-use crate::codec::vp9::parser::Segmentation;
 use crate::codec::vp9::parser::ALTREF_FRAME;
 use crate::codec::vp9::parser::GOLDEN_FRAME;
+use crate::codec::vp9::parser::Header;
 use crate::codec::vp9::parser::LAST_FRAME;
 use crate::codec::vp9::parser::MAX_SEGMENTS;
 use crate::codec::vp9::parser::NUM_REF_FRAMES;
-use crate::decoder::stateless::vp9::StatelessVp9DecoderBackend;
-use crate::decoder::stateless::vp9::Vp9;
+use crate::codec::vp9::parser::Segmentation;
+use crate::decoder::BlockingMode;
+use crate::decoder::DecodedHandle;
 use crate::decoder::stateless::NewPictureError;
 use crate::decoder::stateless::NewPictureResult;
 use crate::decoder::stateless::NewStatelessDecoderError;
@@ -29,14 +32,11 @@ use crate::decoder::stateless::StatelessBackendResult;
 use crate::decoder::stateless::StatelessDecoder;
 use crate::decoder::stateless::StatelessDecoderBackend;
 use crate::decoder::stateless::StatelessDecoderBackendPicture;
-use crate::decoder::BlockingMode;
-use crate::decoder::DecodedHandle;
+use crate::decoder::stateless::vp9::StatelessVp9DecoderBackend;
+use crate::decoder::stateless::vp9::Vp9;
 use crate::device::v4l2::stateless::controls::vp9::V4l2CtrlVp9FrameParams;
 use crate::device::v4l2::stateless::controls::vp9::Vp9V4l2Control;
 use crate::video_frame::VideoFrame;
-use crate::Fourcc;
-use crate::Rect;
-use crate::Resolution;
 
 impl V4l2StreamInfo for &Header {
     fn min_num_frames(&self) -> usize {

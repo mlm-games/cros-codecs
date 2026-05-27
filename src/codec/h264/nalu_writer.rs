@@ -162,11 +162,7 @@ impl<W: Write> NaluWriter<W> {
         let value: i32 = value.into();
         let abs_value: u32 = value.unsigned_abs();
 
-        if value <= 0 {
-            self.write_ue(2 * abs_value)
-        } else {
-            self.write_ue(2 * abs_value - 1)
-        }
+        if value <= 0 { self.write_ue(2 * abs_value) } else { self.write_ue(2 * abs_value - 1) }
     }
 
     /// Returns `true` if ['Self`] hold data that wasn't written to [`std::io::Write`]

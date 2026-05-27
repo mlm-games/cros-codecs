@@ -5,7 +5,7 @@ license = "BSD-3-Clause"
 description = "Hardware-accelerated codecs for Linux"
 repository = "https://github.com/chromeos/cros-codecs"
 authors = ["The ChromiumOS Authors"]
-edition = "2021"
+edition = "2024"
 
 [features]
 default = []

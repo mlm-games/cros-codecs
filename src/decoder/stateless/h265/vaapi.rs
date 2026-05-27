@@ -5,14 +5,16 @@
 use std::rc::Rc;
 use std::sync::Arc;
 
-use anyhow::anyhow;
 use anyhow::Context;
+use anyhow::anyhow;
 use libva::{
     BufferType, Display, HevcSliceExtFlags, IQMatrix, IQMatrixBufferHEVC, PictureHEVC,
     PictureParameterBufferHEVC, SliceParameter, SliceParameterBufferHEVC,
     SliceParameterBufferHEVCRext,
 };
 
+use crate::Rect;
+use crate::Resolution;
 use crate::backend::vaapi::decoder::DecodedHandle as VADecodedHandle;
 use crate::backend::vaapi::decoder::VaStreamInfo;
 use crate::backend::vaapi::decoder::VaapiBackend;
@@ -25,10 +27,8 @@ use crate::codec::h265::parser::Slice;
 use crate::codec::h265::parser::Sps;
 use crate::codec::h265::picture::PictureData;
 use crate::codec::h265::picture::Reference;
-use crate::decoder::stateless::h265::RefPicListEntry;
-use crate::decoder::stateless::h265::RefPicSet;
-use crate::decoder::stateless::h265::StatelessH265DecoderBackend;
-use crate::decoder::stateless::h265::H265;
+use crate::decoder::BlockingMode;
+use crate::decoder::DecodedHandle;
 use crate::decoder::stateless::NewPictureError;
 use crate::decoder::stateless::NewPictureResult;
 use crate::decoder::stateless::NewStatelessDecoderError;
@@ -36,11 +36,11 @@ use crate::decoder::stateless::StatelessBackendResult;
 use crate::decoder::stateless::StatelessDecoder;
 use crate::decoder::stateless::StatelessDecoderBackend;
 use crate::decoder::stateless::StatelessDecoderBackendPicture;
-use crate::decoder::BlockingMode;
-use crate::decoder::DecodedHandle;
+use crate::decoder::stateless::h265::H265;
+use crate::decoder::stateless::h265::RefPicListEntry;
+use crate::decoder::stateless::h265::RefPicSet;
+use crate::decoder::stateless::h265::StatelessH265DecoderBackend;
 use crate::video_frame::VideoFrame;
-use crate::Rect;
-use crate::Resolution;
 
 // Equation 5-8
 fn clip3(x: i32, y: i32, z: i32) -> i32 {
@@ -869,16 +869,16 @@ impl<V: VideoFrame> StatelessDecoder<H265, VaapiBackend<V>> {
 mod tests {
     use libva::Display;
 
+    use crate::DecodedFormat;
     use crate::bitstream_utils::NalIterator;
     use crate::codec::h265::parser::Nalu;
-    use crate::decoder::stateless::h265::H265;
-    use crate::decoder::stateless::tests::test_decode_stream;
-    use crate::decoder::stateless::tests::TestStream;
-    use crate::decoder::stateless::StatelessDecoder;
     use crate::decoder::BlockingMode;
+    use crate::decoder::stateless::StatelessDecoder;
+    use crate::decoder::stateless::h265::H265;
+    use crate::decoder::stateless::tests::TestStream;
+    use crate::decoder::stateless::tests::test_decode_stream;
     use crate::utils::simple_playback_loop;
     use crate::utils::simple_playback_loop_owned_frames;
-    use crate::DecodedFormat;
 
     /// Run `test` using the vaapi decoder, in both blocking and non-blocking modes.
     fn test_decoder_vaapi(

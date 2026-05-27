@@ -156,7 +156,7 @@ impl<V: VideoFrame> RequestHandle<V> {
             _ => {
                 return Err(StatelessBackendError::Other(anyhow::anyhow!(
                     "incorrect request state"
-                )))
+                )));
             }
         };
         Ok(self)

@@ -2,10 +2,10 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+use crate::Resolution;
 use crate::codec::h265::parser::Level;
 use crate::codec::h265::parser::Profile;
 use crate::encoder::PredictionStructure;
-use crate::Resolution;
 
 pub struct H265;
 

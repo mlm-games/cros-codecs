@@ -26,47 +26,47 @@ use libva::Picture;
 use libva::RefFrameCtrlAV1;
 use libva::Surface;
 use libva::SurfaceMemoryDescriptor;
+use libva::VA_INVALID_ID;
 use libva::VAProfile::VAProfileAV1Profile0;
 use libva::VAProfile::VAProfileAV1Profile1;
 use libva::VaError;
-use libva::VA_INVALID_ID;
 
-use crate::backend::vaapi::encoder::tunings_to_libva_rc;
+use crate::BlockingMode;
+use crate::Fourcc;
+use crate::Resolution;
 use crate::backend::vaapi::encoder::CodedOutputPromise;
 use crate::backend::vaapi::encoder::Reconstructed;
 use crate::backend::vaapi::encoder::VaapiBackend;
+use crate::backend::vaapi::encoder::tunings_to_libva_rc;
+use crate::codec::av1::parser::CDEF_MAX;
 use crate::codec::av1::parser::FrameHeaderObu;
 use crate::codec::av1::parser::FrameType;
-use crate::codec::av1::parser::Profile;
-use crate::codec::av1::parser::ReferenceFrameType;
-use crate::codec::av1::parser::SequenceHeaderObu;
-use crate::codec::av1::parser::TemporalDelimiterObu;
-use crate::codec::av1::parser::CDEF_MAX;
 use crate::codec::av1::parser::MAX_SEGMENTS;
 use crate::codec::av1::parser::MAX_TILE_COLS;
 use crate::codec::av1::parser::MAX_TILE_ROWS;
+use crate::codec::av1::parser::Profile;
 use crate::codec::av1::parser::REFS_PER_FRAME;
+use crate::codec::av1::parser::ReferenceFrameType;
 use crate::codec::av1::parser::SEG_LVL_MAX;
+use crate::codec::av1::parser::SequenceHeaderObu;
+use crate::codec::av1::parser::TemporalDelimiterObu;
 use crate::codec::av1::synthesizer::FrameHeaderBitOffsets;
 use crate::codec::av1::synthesizer::Synthesizer;
-use crate::encoder::av1::EncoderConfig;
+use crate::encoder::EncodeResult;
+use crate::encoder::RateControl;
 use crate::encoder::av1::AV1;
-use crate::encoder::stateless::av1::predictor::EncoderFeaturesAV1;
-use crate::encoder::stateless::av1::predictor::MAX_BASE_QINDEX;
-use crate::encoder::stateless::av1::predictor::MIN_BASE_QINDEX;
-use crate::encoder::stateless::av1::BackendRequest;
-use crate::encoder::stateless::av1::StatelessAV1EncoderBackend;
+use crate::encoder::av1::EncoderConfig;
 use crate::encoder::stateless::ReadyPromise;
 use crate::encoder::stateless::StatelessBackendError;
 use crate::encoder::stateless::StatelessBackendResult;
 use crate::encoder::stateless::StatelessEncoder;
 use crate::encoder::stateless::StatelessVideoEncoderBackend;
-use crate::encoder::EncodeResult;
-use crate::encoder::RateControl;
+use crate::encoder::stateless::av1::BackendRequest;
+use crate::encoder::stateless::av1::StatelessAV1EncoderBackend;
+use crate::encoder::stateless::av1::predictor::EncoderFeaturesAV1;
+use crate::encoder::stateless::av1::predictor::MAX_BASE_QINDEX;
+use crate::encoder::stateless::av1::predictor::MIN_BASE_QINDEX;
 use crate::video_frame::VideoFrame;
-use crate::BlockingMode;
-use crate::Fourcc;
-use crate::Resolution;
 
 type Request<H> = BackendRequest<H, Reconstructed>;
 
@@ -207,11 +207,7 @@ where
         let bit_depth_minus8 = if request.sequence.seq_profile == Profile::Profile2
             && request.sequence.color_config.high_bitdepth
         {
-            if request.sequence.color_config.twelve_bit {
-                12
-            } else {
-                10
-            }
+            if request.sequence.color_config.twelve_bit { 12 } else { 10 }
         } else if request.sequence.color_config.high_bitdepth {
             10
         } else {
@@ -705,11 +701,7 @@ where
         // For IDR frames, the driver concatenates packed SH + FH data,
         // so byte_offset_frame_hdr_obu_size must include the SH data length.
         let packed_seq_data_len = packed_seq.as_ref().map_or(0, |(_, data)| {
-            if let BufferType::EncPackedHeaderData(bytes) = data {
-                bytes.len()
-            } else {
-                0
-            }
+            if let BufferType::EncPackedHeaderData(bytes) = data { bytes.len() } else { 0 }
         });
 
         let pic_param = Self::build_pic_param(
@@ -899,14 +891,17 @@ impl<D: SurfaceMemoryDescriptor, S: std::borrow::Borrow<Surface<D>> + 'static>
 mod tests {
     use libva::Display;
     use libva::UsageHint;
-    use libva::VAEntrypoint::VAEntrypointEncSliceLP;
-    use libva::VAProfile::VAProfileAV1Profile0;
     use libva::VA_RT_FORMAT_YUV420;
     use libva::VA_RT_FORMAT_YUV420_10;
+    use libva::VAEntrypoint::VAEntrypointEncSliceLP;
+    use libva::VAProfile::VAProfileAV1Profile0;
 
     use super::*;
-    use crate::backend::vaapi::encoder::tests::upload_test_frame_nv12;
+    use crate::FrameLayout;
+    use crate::PlaneLayout;
+    use crate::Resolution;
     use crate::backend::vaapi::encoder::tests::TestFrameGenerator;
+    use crate::backend::vaapi::encoder::tests::upload_test_frame_nv12;
     use crate::backend::vaapi::surface_pool::PooledVaSurface;
     use crate::backend::vaapi::surface_pool::VaSurfacePool;
     use crate::bitstream_utils::IvfFileHeader;
@@ -916,29 +911,26 @@ mod tests {
     use crate::codec::av1::parser::ColorConfig;
     use crate::codec::av1::parser::FrameHeaderObu;
     use crate::codec::av1::parser::FrameType;
+    use crate::codec::av1::parser::MAX_NUM_OPERATING_POINTS;
     use crate::codec::av1::parser::ObuHeader;
     use crate::codec::av1::parser::ObuType;
     use crate::codec::av1::parser::OperatingPoint;
+    use crate::codec::av1::parser::PRIMARY_REF_NONE;
     use crate::codec::av1::parser::QuantizationParams;
+    use crate::codec::av1::parser::SELECT_INTEGER_MV;
+    use crate::codec::av1::parser::SUPERRES_NUM;
     use crate::codec::av1::parser::SequenceHeaderObu;
     use crate::codec::av1::parser::TemporalDelimiterObu;
     use crate::codec::av1::parser::TileInfo;
     use crate::codec::av1::parser::TxMode;
-    use crate::codec::av1::parser::MAX_NUM_OPERATING_POINTS;
-    use crate::codec::av1::parser::PRIMARY_REF_NONE;
-    use crate::codec::av1::parser::SELECT_INTEGER_MV;
-    use crate::codec::av1::parser::SUPERRES_NUM;
     use crate::codec::av1::synthesizer::Synthesizer;
     use crate::decoder::FramePool;
-    use crate::encoder::simple_encode_loop;
-    use crate::encoder::stateless::BackendPromise;
-    use crate::encoder::stateless::StatelessEncoderBackendImport;
     use crate::encoder::FrameMetadata;
     use crate::encoder::RateControl;
     use crate::encoder::Tunings;
-    use crate::FrameLayout;
-    use crate::PlaneLayout;
-    use crate::Resolution;
+    use crate::encoder::simple_encode_loop;
+    use crate::encoder::stateless::BackendPromise;
+    use crate::encoder::stateless::StatelessEncoderBackendImport;
 
     #[test]
     // Ignore this test by default as it requires libva-compatible hardware.
@@ -982,7 +974,7 @@ mod tests {
         let mut surfaces = display
             .create_surfaces(
                 VA_RT_FORMAT_YUV420,
-                Some(frame_layout.format.0 .0),
+                Some(frame_layout.format.0.0),
                 WIDTH,
                 HEIGHT,
                 Some(UsageHint::USAGE_HINT_ENCODER),

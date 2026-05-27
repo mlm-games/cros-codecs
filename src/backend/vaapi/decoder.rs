@@ -7,23 +7,23 @@ use std::marker::PhantomData;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use anyhow::anyhow;
 use anyhow::Context as AnyhowContext;
+use anyhow::anyhow;
 use libva::{
     Buffer, Context, Display, Picture, PictureEnd, PictureNew, PictureSync, Surface,
     SurfaceMemoryDescriptor, VaError,
 };
 
+use crate::DecodedFormat;
+use crate::Rect;
+use crate::Resolution;
+use crate::decoder::DecodedHandle as DecodedHandleTrait;
+use crate::decoder::StreamInfo;
 use crate::decoder::stateless::StatelessBackendResult;
 use crate::decoder::stateless::StatelessCodec;
 use crate::decoder::stateless::StatelessDecoderBackend;
 use crate::decoder::stateless::StatelessDecoderBackendPicture;
-use crate::decoder::DecodedHandle as DecodedHandleTrait;
-use crate::decoder::StreamInfo;
 use crate::video_frame::VideoFrame;
-use crate::DecodedFormat;
-use crate::Rect;
-use crate::Resolution;
 
 /// A decoded frame handle.
 pub(crate) type DecodedHandle<V> = Rc<RefCell<VaapiDecodedHandle<V>>>;

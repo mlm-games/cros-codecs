@@ -19,26 +19,26 @@ use std::sync::Arc;
 use std::sync::Mutex;
 use thiserror::Error;
 
+use crate::EncodedFormat;
+use crate::Fourcc;
 use crate::c2_wrapper::C2DecodeJob;
 use crate::c2_wrapper::C2State;
 use crate::c2_wrapper::C2Status;
 use crate::c2_wrapper::C2Worker;
 use crate::c2_wrapper::DrainMode;
 use crate::c2_wrapper::Job;
-use crate::decoder::stateless::DecodeError;
-use crate::decoder::stateless::DynStatelessVideoDecoder;
 use crate::decoder::DecoderEvent;
 use crate::decoder::StreamInfo;
+use crate::decoder::stateless::DecodeError;
+use crate::decoder::stateless::DynStatelessVideoDecoder;
 use crate::image_processing::convert_video_frame;
+use crate::video_frame::VideoFrame;
 use crate::video_frame::frame_pool::FramePool;
 use crate::video_frame::frame_pool::PooledVideoFrame;
 #[cfg(feature = "gbm")]
 use crate::video_frame::gbm_video_frame::{GbmDevice, GbmUsage, GbmVideoFrame};
 #[cfg(feature = "v4l2")]
 use crate::video_frame::v4l2_mmap_video_frame::V4l2MmapVideoFrame;
-use crate::video_frame::VideoFrame;
-use crate::EncodedFormat;
-use crate::Fourcc;
 
 #[derive(Debug, Error)]
 pub enum C2DecoderPollErrorWrapper {

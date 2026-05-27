@@ -15,8 +15,8 @@ use libva::Surface;
 use libva::SurfaceMemoryDescriptor;
 use libva::VASurfaceID;
 
-use crate::decoder::FramePool;
 use crate::Resolution;
+use crate::decoder::FramePool;
 
 /// A VA Surface obtained from a `[SurfacePool]`.
 ///
