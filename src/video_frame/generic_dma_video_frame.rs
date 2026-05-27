@@ -10,7 +10,7 @@ use std::cell::RefCell;
 use std::fs::File;
 use std::iter::zip;
 use std::num::NonZeroUsize;
-use std::os::fd::{AsFd, AsRawFd, BorrowedFd, FromRawFd};
+use std::os::fd::{AsFd, AsRawFd, BorrowedFd};
 use std::ptr::NonNull;
 use std::slice;
 use std::sync::atomic::{fence, Ordering};
@@ -351,9 +351,7 @@ impl Clone for GenericDmaVideoFrame {
             dma_handles: self
                 .dma_handles
                 .iter()
-                .map(|x| unsafe {
-                    File::from_raw_fd(dup(x.as_raw_fd()).expect("Could not dup DMAbuf FD!"))
-                })
+                .map(|x| dup(x).expect("Could not dup DMAbuf FD!").into())
                 .collect(),
             layout: self.layout.clone(),
         }

@@ -289,7 +289,7 @@ impl BufferHandles for DmabufFrame {
 
         plane.m.fd = fd.as_raw_fd();
         plane.data_offset = plane_layout.offset as u32;
-        plane.length = fstat(fd.as_raw_fd()).map(|stat| stat.st_size as u32).unwrap_or(0);
+        plane.length = fstat(fd).map(|stat| stat.st_size as u32).unwrap_or(0);
 
         if plane.length == 0 {
             log::warn!("Failed to fstat proper plane size index={index}");

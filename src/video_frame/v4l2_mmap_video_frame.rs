@@ -16,6 +16,10 @@ use crate::Fourcc;
 use crate::Resolution;
 
 use crate::v4l2r::device::Device;
+#[cfg(feature = "vaapi")]
+use libva::Display;
+#[cfg(feature = "vaapi")]
+use libva::Surface;
 use v4l2r::bindings::v4l2_plane;
 use v4l2r::ioctl::{mmap, PlaneMapping, V4l2Buffer};
 use v4l2r::memory::{MmapHandle, PlaneHandle};
@@ -151,7 +155,13 @@ impl V4l2MmapVideoFrame {
 }
 
 impl VideoFrame for V4l2MmapVideoFrame {
+    #[cfg(feature = "v4l2")]
     type NativeHandle = MmapHandle;
+
+    #[cfg(feature = "vaapi")]
+    type MemDescriptor = ();
+    #[cfg(feature = "vaapi")]
+    type VaapiHandle = Surface<()>;
 
     fn fourcc(&self) -> Fourcc {
         self.fourcc.clone()
@@ -210,5 +220,13 @@ impl VideoFrame for V4l2MmapVideoFrame {
         self.device = Some(device);
         self.queue_format = Some(format.clone());
         self.buffer = Some(buf.clone());
+    }
+
+    #[cfg(feature = "vaapi")]
+    fn to_native_handle(
+        &self,
+        _display: &Arc<Display>,
+    ) -> Result<Self::VaapiHandle, String> {
+        Err("V4L2 mmap frames are not compatible with VA-API".to_string())
     }
 }

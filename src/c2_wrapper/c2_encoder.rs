@@ -101,7 +101,7 @@ where
         loop {
             #[cfg(feature = "vaapi")]
             let poll_result = self.encoder_vaapi.as_mut().unwrap().poll();
-            #[cfg(feature = "v4l2")]
+            #[cfg(all(feature = "v4l2", not(feature = "vaapi")))]
             let poll_result = self.encoder_v4l2.as_mut().unwrap().poll();
             match poll_result {
                 Ok(Some(coded)) => {
@@ -238,7 +238,7 @@ where
             if job.get_drain() != DrainMode::NoDrain {
                 #[cfg(feature = "vaapi")]
                 let drain_result = self.encoder_vaapi.as_mut().unwrap().drain();
-                #[cfg(feature = "v4l2")]
+                #[cfg(all(feature = "v4l2", not(feature = "vaapi")))]
                 let drain_result = self.encoder_v4l2.as_mut().unwrap().drain();
                 if let Err(err) = drain_result {
                     log::debug!("Error draining encoder! {:?}", err);
@@ -299,7 +299,7 @@ where
                     #[cfg(feature = "vaapi")]
                     let tune_result =
                         self.encoder_vaapi.as_mut().unwrap().tune(self.current_tunings.clone());
-                    #[cfg(feature = "v4l2")]
+                    #[cfg(all(feature = "v4l2", not(feature = "vaapi")))]
                     let tune_result =
                         self.encoder_v4l2.as_mut().unwrap().tune(self.current_tunings.clone());
                     if let Err(err) = tune_result {
@@ -310,17 +310,26 @@ where
                     }
                 };
 
-                let meta = FrameMetadata {
-                    timestamp: job.timestamp,
-                    layout: Default::default(),
-                    force_keyframe: false,
-                    force_idr: false,
-                };
                 #[cfg(feature = "vaapi")]
-                let encode_result = self.encoder_vaapi.as_mut().unwrap().encode(meta, frame);
-                #[cfg(feature = "v4l2")]
-                let encode_result =
-                    self.encoder_v4l2.as_mut().unwrap().encode(meta, V4l2VideoFrame(frame));
+                let encode_result = self.encoder_vaapi.as_mut().unwrap().encode(
+                    FrameMetadata {
+                        timestamp: job.timestamp,
+                        layout: Default::default(),
+                        force_keyframe: false,
+                        force_idr: false,
+                    },
+                    frame,
+                );
+                #[cfg(all(feature = "v4l2", not(feature = "vaapi")))]
+                let encode_result = self.encoder_v4l2.as_mut().unwrap().encode(
+                    FrameMetadata {
+                        timestamp: job.timestamp,
+                        layout: Default::default(),
+                        force_keyframe: false,
+                        force_idr: false,
+                    },
+                    V4l2VideoFrame(frame),
+                );
                 match encode_result {
                     Ok(_) => self.in_flight_queue.push_back(job),
                     Err(err) => {

@@ -211,7 +211,7 @@ impl libva::ExternalBufferDescriptor for DmabufFrame {
             .iter()
             .map(|fd| libva::VADRMPRIMESurfaceDescriptorObject {
                 fd: fd.as_raw_fd(),
-                size: nix::sys::stat::fstat(fd.as_raw_fd())
+                size: nix::sys::stat::fstat(fd)
                     .map(|stat| stat.st_size as u32)
                     // If we don't have the information about the plane fd size, fallback to 0.
                     // Libva seems to be *sometimes* "happy" with zero.

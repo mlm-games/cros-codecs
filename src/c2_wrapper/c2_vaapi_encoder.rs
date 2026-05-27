@@ -42,7 +42,7 @@ impl C2EncoderBackend for C2VaapiEncoder {
 
         // TODO: Support alternative display paths
         let display =
-            Arc::new(libva::Display::open().ok_or("Error opening LibVA display!".to_string())?);
+            libva::Display::open().ok_or("Error opening LibVA display!".to_string())?;
         Ok(Self {
             display,
             low_power: options.low_power,
