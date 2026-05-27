@@ -13,11 +13,82 @@ use std::ops::Div;
 use std::ops::Mul;
 use std::ops::Sub;
 use std::os::fd::OwnedFd;
+use std::time::Duration;
 
+use crate::decoder::stateless::DecodeError;
+use crate::decoder::stateless::StatelessVideoDecoder;
+use crate::decoder::BlockingMode;
+use crate::decoder::DecodedHandle;
+use crate::decoder::DecoderEvent;
 use crate::Fourcc;
 use crate::FrameLayout;
 use crate::PlaneLayout;
 use crate::Resolution;
+
+/// Simple decoding loop that plays the stream once from start to finish.
+#[allow(clippy::type_complexity)]
+pub fn simple_playback_loop<D, I, H>(
+    decoder: &mut D,
+    stream_iter: I,
+    on_new_frame: &mut dyn FnMut(H),
+    allocate_new_frames: &mut dyn FnMut() -> Option<<H as DecodedHandle>::Frame>,
+    _output_format: crate::DecodedFormat,
+    blocking_mode: BlockingMode,
+) -> anyhow::Result<()>
+where
+    D: StatelessVideoDecoder<Handle = H>,
+    H: DecodedHandle,
+    I: IntoIterator,
+    I::Item: AsRef<[u8]>,
+{
+    let mut check_events = |decoder: &mut D| -> anyhow::Result<()> {
+        while let Some(event) = decoder.next_event() {
+            match event {
+                DecoderEvent::FrameReady(frame) => {
+                    on_new_frame(frame);
+                }
+                DecoderEvent::FormatChanged => {}
+            }
+        }
+        Ok(())
+    };
+
+    for (frame_num, packet) in stream_iter.into_iter().enumerate() {
+        let mut bitstream = packet.as_ref();
+        loop {
+            match decoder.decode(frame_num as u64, bitstream, allocate_new_frames) {
+                Ok(bytes_decoded) => {
+                    bitstream = &bitstream[bytes_decoded..];
+
+                    if blocking_mode == BlockingMode::Blocking {
+                        check_events(decoder)?;
+                    }
+
+                    if bitstream.is_empty() {
+                        break;
+                    }
+                }
+                Err(DecodeError::CheckEvents) | Err(DecodeError::NotEnoughOutputBuffers(_)) => {
+                    decoder.wait_for_next_event(Duration::from_secs(3))?;
+                    check_events(decoder)?
+                }
+                Err(e) => anyhow::bail!(e),
+            }
+        }
+    }
+
+    decoder.flush()?;
+    check_events(decoder)
+}
+
+/// Frame allocation callback for the dummy backend.
+#[cfg(any(test, feature = "fuzzing", fuzzing))]
+pub fn simple_playback_loop_owned_frames() -> Option<crate::backend::dummy::decoder::DummyFrame> {
+    Some(crate::backend::dummy::decoder::DummyFrame)
+}
+
+#[cfg(any(test, feature = "fuzzing", fuzzing))]
+pub use crate::bitstream_utils::{IvfIterator, NalIterator};
 
 pub fn align_up<T>(x: T, alignment: T) -> T
 where

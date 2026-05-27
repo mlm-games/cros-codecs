@@ -5,10 +5,11 @@
 //! This file contains a dummy backend whose only purpose is to let the decoder
 //! run so we can test it in isolation.
 
-use std::cell::RefCell;
 use std::rc::Rc;
+use std::sync::Arc;
 
 use crate::backend::dummy::decoder::Backend;
+use crate::backend::dummy::decoder::DummyFrame;
 use crate::backend::dummy::decoder::Handle;
 use crate::codec::h264::dpb::Dpb;
 use crate::codec::h264::dpb::DpbEntry;
@@ -59,10 +60,16 @@ impl StatelessH264DecoderBackend for Backend {
     }
 
     fn submit_picture(&mut self, _: Self::Picture) -> StatelessBackendResult<Self::Handle> {
-        Ok(Handle { handle: Rc::new(RefCell::new(Default::default())) })
+        Ok(Handle { frame: Arc::new(DummyFrame) })
     }
 
-    fn new_picture(&mut self, _: u64) -> NewPictureResult<()> {
+    fn new_picture(
+        &mut self,
+        _: u64,
+        _: &mut dyn FnMut() -> Option<
+            <<Self as crate::decoder::stateless::StatelessDecoderBackend>::Handle as crate::decoder::DecodedHandle>::Frame,
+        >,
+    ) -> NewPictureResult<()> {
         Ok(())
     }
 }

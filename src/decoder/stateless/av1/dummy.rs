@@ -5,10 +5,10 @@
 //! This file contains a dummy backend whose only purpose is to let the decoder
 //! run so we can test it in isolation.
 
-use std::cell::RefCell;
-use std::rc::Rc;
+use std::sync::Arc;
 
 use crate::backend::dummy::decoder::Backend;
+use crate::backend::dummy::decoder::DummyFrame;
 use crate::backend::dummy::decoder::Handle;
 
 use crate::decoder::stateless::av1::Av1;
@@ -31,6 +31,9 @@ impl StatelessAV1DecoderBackend for Backend {
         _: &crate::codec::av1::parser::FrameHeaderObu,
         _: u64,
         _: Option<u32>,
+        _: &mut dyn FnMut() -> Option<
+            <<Self as crate::decoder::stateless::StatelessDecoderBackend>::Handle as crate::decoder::DecodedHandle>::Frame,
+        >,
     ) -> crate::decoder::stateless::NewPictureResult<Self::Picture> {
         Ok(())
     }
@@ -57,7 +60,7 @@ impl StatelessAV1DecoderBackend for Backend {
         &mut self,
         _: Self::Picture,
     ) -> crate::decoder::stateless::StatelessBackendResult<Self::Handle> {
-        Ok(Handle { handle: Rc::new(RefCell::new(Default::default())) })
+        Ok(Handle { frame: Arc::new(DummyFrame) })
     }
 }
 

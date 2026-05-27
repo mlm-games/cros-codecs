@@ -13,6 +13,7 @@ anyhow = "1"
 
 [dependencies.cros-codecs]
 path = ".."
+features = ["backend", "fuzzing"]
 
 [[bin]]
 name = "decoder_h264"

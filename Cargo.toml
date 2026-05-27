@@ -26,6 +26,7 @@ gbm = ["dep:gbm", "gbm-sys"]
 h265 = []
 av1 = []
 c2-wrapper = ["backend"]
+fuzzing = []
 
 [dependencies]
 anyhow = { version = "1.0.75", optional = true }

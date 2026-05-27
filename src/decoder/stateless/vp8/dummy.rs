@@ -5,10 +5,10 @@
 // This file contains a dummy backend whose only purpose is to let the decoder
 // run so we can test it in isolation.
 
-use std::cell::RefCell;
-use std::rc::Rc;
+use std::sync::Arc;
 
 use crate::backend::dummy::decoder::Backend;
+use crate::backend::dummy::decoder::DummyFrame;
 use crate::backend::dummy::decoder::Handle;
 use crate::codec::vp8::parser::Header;
 use crate::codec::vp8::parser::MbLfAdjustments;
@@ -26,7 +26,13 @@ impl StatelessVp8DecoderBackend for Backend {
         Ok(())
     }
 
-    fn new_picture(&mut self, _: u64) -> NewPictureResult<Self::Picture> {
+    fn new_picture(
+        &mut self,
+        _: u64,
+        _: &mut dyn FnMut() -> Option<
+            <<Self as crate::decoder::stateless::StatelessDecoderBackend>::Handle as crate::decoder::DecodedHandle>::Frame,
+        >,
+    ) -> NewPictureResult<Self::Picture> {
         Ok(())
     }
 
@@ -41,7 +47,7 @@ impl StatelessVp8DecoderBackend for Backend {
         _: &Segmentation,
         _: &MbLfAdjustments,
     ) -> StatelessBackendResult<Self::Handle> {
-        Ok(Handle { handle: Rc::new(RefCell::new(Default::default())) })
+        Ok(Handle { frame: Arc::new(DummyFrame) })
     }
 }
 

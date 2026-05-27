@@ -5,80 +5,104 @@
 //! This file contains a dummy backend whose only purpose is to let the decoder
 //! run so we can test it in isolation.
 
-use std::cell::RefCell;
-use std::rc::Rc;
+use std::sync::Arc;
 
-use crate::decoder::stateless::PoolLayer;
-use crate::decoder::stateless::StatelessCodec;
+use crate::decoder::DecodedHandle;
+use crate::decoder::StreamInfo;
 use crate::decoder::stateless::StatelessDecoderBackend;
 use crate::decoder::stateless::StatelessDecoderBackendPicture;
-use crate::decoder::stateless::TryFormat;
-use crate::decoder::DecodedHandle;
-use crate::decoder::DynHandle;
-use crate::decoder::FramePool;
-use crate::decoder::MappableHandle;
-use crate::decoder::StreamInfo;
+use crate::decoder::stateless::StatelessCodec;
+use crate::video_frame::ReadMapping;
+use crate::video_frame::VideoFrame;
+use crate::video_frame::WriteMapping;
 use crate::DecodedFormat;
+use crate::Fourcc;
 use crate::Resolution;
 
-#[derive(Default)]
-pub struct BackendHandle(());
+#[derive(Default, Debug)]
+pub struct DummyFrame;
 
-impl MappableHandle for BackendHandle {
-    fn read(&mut self, _: &mut [u8]) -> anyhow::Result<()> {
-        Ok(())
+impl VideoFrame for DummyFrame {
+    fn fourcc(&self) -> Fourcc {
+        Fourcc::from(b"NV12")
     }
 
-    fn image_size(&mut self) -> usize {
-        1
+    fn resolution(&self) -> Resolution {
+        Resolution::default()
     }
-}
 
-impl<'a> DynHandle for std::cell::RefMut<'a, BackendHandle> {
-    fn dyn_mappable_handle<'b>(&'b mut self) -> anyhow::Result<Box<dyn MappableHandle + 'b>> {
-        Ok(Box::<BackendHandle>::default())
+    fn get_plane_size(&self) -> Vec<usize> {
+        vec![1, 1]
+    }
+
+    fn get_plane_pitch(&self) -> Vec<usize> {
+        vec![1, 1]
+    }
+
+    fn map<'a>(&'a self) -> Result<Box<dyn ReadMapping<'a> + 'a>, String> {
+        Err("dummy backend does not support mapping".to_string())
+    }
+
+    fn map_mut<'a>(&'a mut self) -> Result<Box<dyn WriteMapping<'a> + 'a>, String> {
+        Err("dummy backend does not support mapping".to_string())
+    }
+
+    #[cfg(feature = "v4l2")]
+    fn fill_v4l2_plane(&self, _index: usize, _plane: &mut v4l2r::bindings::v4l2_plane) {}
+
+    #[cfg(feature = "v4l2")]
+    fn process_dqbuf(
+        &mut self,
+        _device: Arc<crate::v4l2r::device::Device>,
+        _format: &v4l2r::Format,
+        _buf: &v4l2r::ioctl::V4l2Buffer,
+    ) {
+    }
+
+    #[cfg(feature = "vaapi")]
+    fn to_native_handle(
+        &self,
+        _display: &Arc<libva::Display>,
+    ) -> Result<Self::VaapiHandle, String> {
+        Err("dummy backend does not support VA-API export".to_string())
     }
 }
 
 pub struct Handle {
-    pub handle: Rc<RefCell<BackendHandle>>,
+    pub frame: Arc<DummyFrame>,
 }
 
 impl Clone for Handle {
     fn clone(&self) -> Self {
-        Self { handle: Rc::clone(&self.handle) }
+        Self { frame: Arc::clone(&self.frame) }
     }
 }
 
 impl DecodedHandle for Handle {
-    type Descriptor = ();
+    type Frame = DummyFrame;
 
-    fn coded_resolution(&self) -> Resolution {
-        Default::default()
-    }
-
-    fn display_resolution(&self) -> Resolution {
-        Default::default()
+    fn video_frame(&self) -> Arc<Self::Frame> {
+        Arc::clone(&self.frame)
     }
 
     fn timestamp(&self) -> u64 {
         0
     }
 
-    fn dyn_picture<'a>(&'a self) -> Box<dyn DynHandle + 'a> {
-        Box::new(self.handle.borrow())
+    fn coded_resolution(&self) -> Resolution {
+        Resolution::default()
     }
 
-    fn sync(&self) -> anyhow::Result<()> {
-        Ok(())
+    fn display_resolution(&self) -> Resolution {
+        Resolution::default()
     }
 
     fn is_ready(&self) -> bool {
         true
     }
 
-    fn resource(&self) -> std::cell::Ref<()> {
-        std::cell::Ref::map(self.handle.borrow(), |h| &h.0)
+    fn sync(&self) -> anyhow::Result<()> {
+        Ok(())
     }
 }
 
@@ -100,50 +124,18 @@ impl Backend {
     }
 }
 
-impl FramePool for Backend {
-    type Descriptor = ();
-
-    fn coded_resolution(&self) -> Resolution {
-        Resolution::from((320, 200))
-    }
-
-    fn set_coded_resolution(&mut self, _resolution: Resolution) {}
-
-    fn add_frames(&mut self, _descriptors: Vec<Self::Descriptor>) -> Result<(), anyhow::Error> {
-        Ok(())
-    }
-
-    fn num_free_frames(&self) -> usize {
-        4
-    }
-
-    fn num_managed_frames(&self) -> usize {
-        4
-    }
-
-    fn clear(&mut self) {}
-}
-
 impl<Codec: StatelessCodec> StatelessDecoderBackendPicture<Codec> for Backend {
     type Picture = ();
-}
-
-impl<Codec: StatelessCodec> TryFormat<Codec> for Backend {
-    fn try_format(&mut self, _: &Codec::FormatInfo, _: DecodedFormat) -> anyhow::Result<()> {
-        Ok(())
-    }
 }
 
 impl StatelessDecoderBackend for Backend {
     type Handle = Handle;
 
-    type FramePool = Self;
-
     fn stream_info(&self) -> Option<&StreamInfo> {
         Some(&self.stream_info)
     }
 
-    fn frame_pool(&mut self, _: PoolLayer) -> Vec<&mut Self::FramePool> {
-        vec![self]
+    fn reset_backend(&mut self) -> anyhow::Result<()> {
+        Ok(())
     }
 }
