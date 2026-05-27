@@ -173,7 +173,7 @@ where
                 _phantom: Default::default(),
             });
         }
-        #[cfg(feature = "v4l2")]
+        #[cfg(all(feature = "v4l2", not(feature = "vaapi")))]
         {
             let (enc, vis, cod) = backend.get_encoder_v4l2(
                 DecodedFormat::from(input_fourcc),

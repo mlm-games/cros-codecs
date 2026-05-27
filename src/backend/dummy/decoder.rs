@@ -18,11 +18,23 @@ use crate::decoder::stateless::StatelessDecoderBackendPicture;
 use crate::video_frame::ReadMapping;
 use crate::video_frame::VideoFrame;
 use crate::video_frame::WriteMapping;
+#[cfg(feature = "vaapi")]
+use libva::Surface;
+#[cfg(feature = "v4l2")]
+use v4l2r::memory::MmapHandle;
 
 #[derive(Default, Debug)]
 pub struct DummyFrame;
 
 impl VideoFrame for DummyFrame {
+    #[cfg(feature = "v4l2")]
+    type NativeHandle = MmapHandle;
+
+    #[cfg(feature = "vaapi")]
+    type MemDescriptor = ();
+    #[cfg(feature = "vaapi")]
+    type VaapiHandle = Surface<()>;
+
     fn fourcc(&self) -> Fourcc {
         Fourcc::from(b"NV12")
     }

@@ -134,7 +134,7 @@ where
                 None,
             ));
         }
-        #[cfg(feature = "v4l2")]
+        #[cfg(all(feature = "v4l2", not(feature = "gbm")))]
         {
             let framepool = FramePool::new(move |stream_info: &StreamInfo| {
                 V4l2MmapVideoFrame::new(
@@ -183,12 +183,17 @@ where
                         (*self.work_done_cb.lock().unwrap())(job);
                     }
                     Some(DecoderEvent::FormatChanged) => {
-                        #[cfg(feature = "gbm")]
-                        let stream_info = stream_info_gbm.clone();
-                        #[cfg(feature = "v4l2")]
-                        let stream_info = stream_info_v4l2.clone();
-                        #[cfg(not(any(feature = "gbm", feature = "v4l2")))]
-                        let stream_info: Option<StreamInfo> = None;
+                        let stream_info: Option<StreamInfo> = {
+                            #[cfg(feature = "gbm")]
+                            { stream_info_gbm.clone() }
+                            #[cfg(not(feature = "gbm"))]
+                            {
+                                #[cfg(feature = "v4l2")]
+                                { stream_info_v4l2.clone() }
+                                #[cfg(not(feature = "v4l2"))]
+                                { None }
+                            }
+                        };
                         match stream_info {
                             Some(stream_info) => {
                                 (*self.framepool_hint_cb.lock().unwrap())(stream_info);

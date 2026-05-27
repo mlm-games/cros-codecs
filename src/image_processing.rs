@@ -167,32 +167,34 @@ pub fn y410_to_i410(
 /// - `src` and `dst` do not overlap.
 /// - Both pointers are aligned to 1-byte boundaries.
 pub unsafe fn align_detile(src: *const u8, src_tile_stride: isize, dst: *mut u8, width: usize) {
-    let mut vin = [0u8; MM21_TILE_WIDTH];
-    let mut vout = [0u8; MM21_TILE_WIDTH];
+    unsafe {
+        let mut vin = [0u8; MM21_TILE_WIDTH];
+        let mut vout = [0u8; MM21_TILE_WIDTH];
 
-    let bytes_per_pixel = 1;
-    let mask = MM21_TILE_WIDTH - 1;
+        let bytes_per_pixel = 1;
+        let mask = MM21_TILE_WIDTH - 1;
 
-    let remainder = width & mask;
-    let width_aligned_down = width & !mask;
-    if width_aligned_down > 0 {
-        detile_row(src, src_tile_stride, dst, width_aligned_down);
+        let remainder = width & mask;
+        let width_aligned_down = width & !mask;
+        if width_aligned_down > 0 {
+            detile_row(src, src_tile_stride, dst, width_aligned_down);
+        }
+
+        let index = (width_aligned_down / MM21_TILE_WIDTH * (src_tile_stride as usize)) as usize;
+        let input_slice =
+            std::slice::from_raw_parts(src.offset(index as isize), remainder * bytes_per_pixel);
+        (&mut vin[0..remainder * bytes_per_pixel])
+            .copy_from_slice(&input_slice[0..remainder * bytes_per_pixel]);
+
+        detile_row(vin.as_ptr(), src_tile_stride, vout.as_mut_ptr(), MM21_TILE_WIDTH);
+
+        let output_slice = std::slice::from_raw_parts_mut(
+            dst.offset(width_aligned_down as isize),
+            remainder * bytes_per_pixel,
+        );
+        output_slice[0..remainder * bytes_per_pixel]
+            .copy_from_slice(&vout[0..remainder * bytes_per_pixel]);
     }
-
-    let index = (width_aligned_down / MM21_TILE_WIDTH * (src_tile_stride as usize)) as usize;
-    let input_slice =
-        std::slice::from_raw_parts(src.offset(index as isize), remainder * bytes_per_pixel);
-    (&mut vin[0..remainder * bytes_per_pixel])
-        .copy_from_slice(&input_slice[0..remainder * bytes_per_pixel]);
-
-    detile_row(vin.as_ptr(), src_tile_stride, vout.as_mut_ptr(), MM21_TILE_WIDTH);
-
-    let output_slice = std::slice::from_raw_parts_mut(
-        dst.offset(width_aligned_down as isize),
-        remainder * bytes_per_pixel,
-    );
-    output_slice[0..remainder * bytes_per_pixel]
-        .copy_from_slice(&vout[0..remainder * bytes_per_pixel]);
 }
 
 #[cfg(feature = "v4l2")]
@@ -209,26 +211,28 @@ pub unsafe fn detile_row(
     mut dst: *mut u8,
     width: usize,
 ) {
-    #[cfg(target_arch = "aarch64")]
-    {
-        let mut w = width;
-        while w > 0 {
-            let v0: uint8x16_t = vld1q_u8(src);
-            src = src.offset(src_tile_stride as isize);
-            w = w - MM21_TILE_WIDTH;
-            vst1q_u8(dst, v0);
-            dst = dst.offset(MM21_TILE_WIDTH as isize);
+    unsafe {
+        #[cfg(target_arch = "aarch64")]
+        {
+            let mut w = width;
+            while w > 0 {
+                let v0: uint8x16_t = vld1q_u8(src);
+                src = src.offset(src_tile_stride as isize);
+                w = w - MM21_TILE_WIDTH;
+                vst1q_u8(dst, v0);
+                dst = dst.offset(MM21_TILE_WIDTH as isize);
+            }
         }
-    }
-    #[cfg(not(target_arch = "aarch64"))]
-    {
-        let mut w = width;
-        while w > 0 {
-            let chunk = std::slice::from_raw_parts(src, MM21_TILE_WIDTH);
-            std::ptr::copy_nonoverlapping(chunk.as_ptr(), dst, MM21_TILE_WIDTH);
-            src = src.offset(src_tile_stride as isize);
-            w = w - MM21_TILE_WIDTH;
-            dst = dst.offset(MM21_TILE_WIDTH as isize);
+        #[cfg(not(target_arch = "aarch64"))]
+        {
+            let mut w = width;
+            while w > 0 {
+                let chunk = std::slice::from_raw_parts(src, MM21_TILE_WIDTH);
+                std::ptr::copy_nonoverlapping(chunk.as_ptr(), dst, MM21_TILE_WIDTH);
+                src = src.offset(src_tile_stride as isize);
+                w = w - MM21_TILE_WIDTH;
+                dst = dst.offset(MM21_TILE_WIDTH as isize);
+            }
         }
     }
 }
