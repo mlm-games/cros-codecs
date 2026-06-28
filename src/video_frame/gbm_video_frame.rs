@@ -191,10 +191,18 @@ pub struct GbmVideoFrame {
     // to V4L2.
     #[cfg(feature = "v4l2")]
     export_handles: Vec<DmaBufHandle<File>>,
+    // When a single BO backs a multiplanar format (e.g., single R8 BO for NV12),
+    // these override the per-plane offsets/pitches derived from the BO.
+    // `None` means use the default GBM query methods.
+    plane_offsets: Option<Vec<usize>>,
+    plane_pitches: Option<Vec<usize>>,
 }
 
 impl GbmVideoFrame {
     fn get_plane_offset(&self) -> Vec<usize> {
+        if let Some(ref offsets) = self.plane_offsets {
+            return offsets.clone();
+        }
         let mut ret: Vec<usize> = vec![];
         for plane_idx in 0..self.num_planes() {
             // SAFETY: This assumes self.bo contains valid GBM buffer objects.
@@ -235,9 +243,16 @@ impl GbmVideoFrame {
     }
 
     pub fn to_generic_dma_video_frame(self) -> Result<GenericDmaVideoFrame, String> {
+        // When a single BO backs multiple planes (single-R8 fallback for NV12),
+        // all planes share buffer_index 0. Otherwise each plane has its own BO.
+        let num_bo = self.bo.len();
         let planes: Vec<PlaneLayout> = zip(self.get_plane_offset(), self.get_plane_pitch())
             .enumerate()
-            .map(|x| PlaneLayout { buffer_index: x.0, offset: x.1.0, stride: x.1.1 })
+            .map(|x| PlaneLayout {
+                buffer_index: if num_bo == 1 { 0 } else { x.0 },
+                offset: x.1.0,
+                stride: x.1.1,
+            })
             .collect();
         // SAFETY: gbm_bo_get_fd returns a new, owned FD every time it is called, so this should be
         // safe as long as self.bo contains valid buffer objects.
@@ -359,6 +374,9 @@ impl VideoFrame for GbmVideoFrame {
     }
 
     fn get_plane_pitch(&self) -> Vec<usize> {
+        if let Some(ref pitches) = self.plane_pitches {
+            return pitches.clone();
+        }
         let mut ret: Vec<usize> = vec![];
         for plane_idx in 0..self.num_planes() {
             // SAFETY: This assumes self.bo contains valid GBM buffer objects.
@@ -494,6 +512,8 @@ impl GbmDevice {
             _device: Some(Arc::clone(&self)),
             #[cfg(feature = "v4l2")]
             export_handles: vec![],
+            plane_offsets: None,
+            plane_pitches: None,
         };
 
         if ret.is_compressed() {
@@ -528,68 +548,97 @@ impl GbmDevice {
             // video decoding hardware sometimes makes assumptions about the modifier flags. If we
             // try to force everything to be linear, we can end up getting a tiled frame when we
             // try to map it.
+            let video_flag = if usage == GbmUsage::Decode {
+                GBM_BO_USE_HW_VIDEO_DECODER
+            } else {
+                GBM_BO_USE_HW_VIDEO_ENCODER
+            };
             // SAFETY: This should be safe because we would not instantiate a GbmDevice unless the
             // call to gbm_create_device was successful.
-            let bo = unsafe {
+            let mut bo = unsafe {
                 gbm_bo_create(
                     self.device,
                     coded_resolution.width,
                     coded_resolution.height,
                     u32::from(fourcc),
-                    if usage == GbmUsage::Decode {
-                        GBM_BO_USE_HW_VIDEO_DECODER
-                    } else {
-                        GBM_BO_USE_HW_VIDEO_ENCODER
-                    },
+                    video_flag,
                 )
             };
+            // ChromeOS-specific video flags may not be supported on all kernels.
             if bo.is_null() {
-                return Err(format!(
-                    "Error allocating contiguous buffer! Fourcc: {} width: {} height: {}",
-                    fourcc.to_string(),
-                    coded_resolution.width,
-                    coded_resolution.height
-                ));
-            }
-
-            ret.bo.push(bo);
-        } else {
-            // We hack multiplanar formats into GBM by making a bunch of separate BO's.
-            // The usage flag is ignored here because R8 are generally not supported
-            // decoder and encoder formats, so we just have to accept we're on our own for figuring
-            // out alignment, modifier, fourcc, etc.
-            let horizontal_subsampling = ret.get_horizontal_subsampling();
-            let vertical_subsampling = ret.get_vertical_subsampling();
-            let bytes_per_element = ret.get_bytes_per_element();
-            for plane_idx in 0..ret.num_planes() {
-                // SAFETY: This should be safe because we would not instantiate a GbmDevice unless
-                // the call to gbm_create_device was successful.
-                let bo = unsafe {
+                bo = unsafe {
                     gbm_bo_create(
                         self.device,
-                        (align_up(
-                            coded_resolution.width as usize,
-                            horizontal_subsampling[plane_idx],
-                        ) / horizontal_subsampling[plane_idx]
-                            * bytes_per_element[plane_idx]) as u32,
-                        (align_up(
-                            coded_resolution.height as usize,
-                            vertical_subsampling[plane_idx],
-                        ) / vertical_subsampling[plane_idx]) as u32,
+                        coded_resolution.width,
+                        coded_resolution.height,
+                        u32::from(fourcc),
+                        gbm_bo_flags::GBM_BO_USE_LINEAR as u32,
+                    )
+                };
+            }
+            if !bo.is_null() {
+                ret.bo.push(bo);
+            }
+        }
+
+        // If no buffer was allocated yet (contiguous NV12 failed on non-ChromeOS kernel),
+        // fall back to a single R8 buffer sized to hold the full NV12 frame.
+        // The VA-API/iHD driver requires a single-object descriptor for decode surfaces,
+        // so we cannot use per-plane R8 allocations (which create multi-object descriptors).
+        if ret.bo.is_empty() {
+            // Allocate one R8 LINEAR BO large enough to cover coded_width * coded_height * 3/2.
+            // Using coded_width as the BO width ensures the stride is >= coded_width, which
+            // NV12 requires. The height is computed to fit the full NV12 frame.
+            let w = coded_resolution.width;
+            let h = coded_resolution.height;
+            // Single R8 BO: width = coded_width (ensures stride >= coded_width),
+            // height = coded_height * 3/2 fits the full NV12 frame.
+            let r8_width = w;
+            let r8_height = (h * 3 / 2).max(1);
+            let mut bo = unsafe {
+                gbm_bo_create(
+                    self.device,
+                    r8_width,
+                    r8_height,
+                    DrmFourcc::R8 as u32,
+                    gbm_bo_flags::GBM_BO_USE_LINEAR as u32,
+                )
+            };
+            // If the exact sizing above fails, fall back to the sqrt-based approach
+            // (used for compressed buffers).
+            if bo.is_null() {
+                let buffer_size = buffer_size_for_area(w, h);
+                let fake_width = align_up((buffer_size as f64).sqrt() as u32, 32);
+                let fake_height = align_up(buffer_size as u32, fake_width) / fake_width;
+                bo = unsafe {
+                    gbm_bo_create(
+                        self.device,
+                        fake_width,
+                        fake_height,
                         DrmFourcc::R8 as u32,
                         gbm_bo_flags::GBM_BO_USE_LINEAR as u32,
                     )
                 };
-                if bo.is_null() {
-                    return Err(format!(
-                        "Error allocating plane {} for format {}",
-                        plane_idx,
-                        fourcc.to_string()
-                    ));
-                }
-
-                ret.bo.push(bo);
             }
+            if bo.is_null() {
+                return Err(format!(
+                    "Error allocating single R8 buffer for format {} ({}x{})",
+                    fourcc.to_string(),
+                    coded_resolution.width,
+                    coded_resolution.height,
+                ));
+            }
+            ret.bo.push(bo);
+
+            // Set correct plane offsets/pitches for NV12-over-R8.
+            // UV offset must use bo_stride * coded_height (not coded_width * coded_height)
+            // because GenericDmaVideoFrame::get_single_plane_size(0) derives plane0 size
+            // from planes[1].offset - planes[0].offset. The validation checks
+            // plane_size[0] >= visible_height * bo_stride, which requires offset >= bo_stride * h.
+            let bo_stride = unsafe { gbm_bo_get_stride_for_plane(bo, 0) as usize };
+            let uv_offset = bo_stride * (coded_resolution.height as usize);
+            ret.plane_offsets = Some(vec![0, uv_offset]);
+            ret.plane_pitches = Some(vec![bo_stride, bo_stride]);
         }
 
         #[cfg(feature = "v4l2")]
@@ -622,6 +671,8 @@ impl GbmDevice {
             bo: vec![],
             export_handles: vec![],
             _device: Some(Arc::clone(&self)),
+            plane_offsets: None,
+            plane_pitches: None,
         };
 
         if strides.is_empty() || native_handle.is_empty() {
@@ -712,6 +763,8 @@ impl GbmDevice {
             bo: vec![],
             #[cfg(feature = "v4l2")]
             export_handles: vec![],
+            plane_offsets: None,
+            plane_pitches: None,
         };
 
         let buffers = [

@@ -421,8 +421,13 @@ where
     {
         // The next event is either the next frame, or, if we are awaiting negotiation, the format
         // change event that will allow us to keep going.
-        self.ready_queue.next().map(DecoderEvent::FrameReady).or_else(|| {
+        let frame_ready = self.ready_queue.next().map(DecoderEvent::FrameReady);
+        if frame_ready.is_some() {
+            eprintln!("[VP9] query_next_event returning FrameReady");
+        }
+        frame_ready.or_else(|| {
             if let DecodingState::AwaitingFormat(format_info) = self.decoding_state.clone() {
+                eprintln!("[VP9] query_next_event returning FormatChanged");
                 on_format_changed(self, &format_info);
                 self.decoding_state = DecodingState::Reset;
                 self.awaiting_format_event.read().unwrap();
