@@ -349,6 +349,8 @@ pub enum NewStatelessDecoderError {
     EpollAdd(Errno),
     #[error("failed to initialize the driver")]
     DriverInitialization,
+    #[error("VA-API backend error: {0}")]
+    VaapiBackend(anyhow::Error),
 }
 
 impl<C, B> StatelessDecoder<C, B>

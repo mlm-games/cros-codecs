@@ -200,11 +200,11 @@ pub struct VaapiBackend<V: VideoFrame> {
 }
 
 impl<V: VideoFrame> VaapiBackend<V> {
-    pub(crate) fn new(display: Arc<libva::Display>, supports_context_reuse: bool) -> Self {
+    pub(crate) fn new(display: Arc<libva::Display>, supports_context_reuse: bool) -> Result<Self, anyhow::Error> {
         let init_stream_info = StreamInfo {
             format: DecodedFormat::NV12,
-            coded_resolution: Resolution::from((16, 16)),
-            display_resolution: Resolution::from((16, 16)),
+            coded_resolution: Resolution::from((128, 128)),
+            display_resolution: Resolution::from((128, 128)),
             min_num_frames: 1,
         };
         let config = display
@@ -216,23 +216,33 @@ impl<V: VideoFrame> VaapiBackend<V> {
                 libva::VAProfile::VAProfileH264Main,
                 libva::VAEntrypoint::VAEntrypointVLD,
             )
-            .expect("Could not create initial VAConfig!");
-        let context = display
-            .create_context::<<V as VideoFrame>::MemDescriptor>(
-                &config,
+            .with_context(|| "Could not create initial VAConfig!")?;
+        let surfaces = display
+            .create_surfaces::<()>(
+                libva::VA_RT_FORMAT_YUV420,
+                None,
                 init_stream_info.coded_resolution.width,
                 init_stream_info.coded_resolution.height,
                 None,
+                vec![()],
+            )
+            .with_context(|| "Could not create initial VA surfaces!")?;
+        let context = display
+            .create_context::<()>(
+                &config,
+                init_stream_info.coded_resolution.width,
+                init_stream_info.coded_resolution.height,
+                Some(&surfaces),
                 true,
             )
-            .expect("Could not create initial VAContext!");
-        Self {
+            .with_context(|| "Could not create initial VAContext!")?;
+        Ok(Self {
             display: display,
             context: context,
             _supports_context_reuse: supports_context_reuse,
             stream_info: init_stream_info,
             _phantom_data: Default::default(),
-        }
+        })
     }
 
     pub(crate) fn new_sequence<StreamData>(

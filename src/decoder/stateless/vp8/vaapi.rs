@@ -294,7 +294,7 @@ impl<V: VideoFrame> StatelessDecoder<Vp8, VaapiBackend<V>> {
         display: Arc<Display>,
         blocking_mode: BlockingMode,
     ) -> Result<Self, NewStatelessDecoderError> {
-        Self::new(VaapiBackend::new(display, false), blocking_mode)
+        Self::new(VaapiBackend::new(display, false).map_err(NewStatelessDecoderError::VaapiBackend)?, blocking_mode)
     }
 }
 
