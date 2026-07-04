@@ -405,7 +405,9 @@ where
             } else {
                 // Since the ready queue is not empty yet, we can't start the DRC.
                 // Clear the awaiting format event as we cannot process this yet.
-                self.awaiting_format_event.read().unwrap();
+                if let Err(e) = self.awaiting_format_event.read() {
+                    log::error!("failed to read awaiting format event: {:#}", e);
+                }
                 return Err(DecodeError::CheckEvents);
             }
         }
@@ -429,7 +431,9 @@ where
                 log::debug!("query_next_event returning FormatChanged");
                 on_format_changed(self, &format_info);
                 self.decoding_state = DecodingState::Reset;
-                self.awaiting_format_event.read().unwrap();
+                if let Err(e) = self.awaiting_format_event.read() {
+                    log::error!("failed to read awaiting format event: {:#}", e);
+                }
                 Some(DecoderEvent::FormatChanged)
             } else {
                 None

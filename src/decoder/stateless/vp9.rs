@@ -285,7 +285,9 @@ where
                     self.flush()?;
                     self.decoding_state = DecodingState::FlushingForDRC;
                     // Start signaling the awaiting format event to process a format change.
-                    self.awaiting_format_event.write(1).unwrap();
+                    if let Err(e) = self.awaiting_format_event.write(1) {
+                        log::error!("failed to signal awaiting format event: {:#}", e);
+                    }
                     return Err(DecodeError::CheckEvents);
                 }
                 self.backend.new_sequence(&frame.header)?;
@@ -302,7 +304,9 @@ where
             // Ask the client to confirm the format before we can process this.
             DecodingState::FlushingForDRC | DecodingState::AwaitingFormat(_) => {
                 // Start signaling the awaiting format event to process a format change.
-                self.awaiting_format_event.write(1).unwrap();
+                if let Err(e) = self.awaiting_format_event.write(1) {
+                    log::error!("failed to signal awaiting format event: {:#}", e);
+                }
                 return Err(DecodeError::CheckEvents);
             }
             DecodingState::Decoding => {

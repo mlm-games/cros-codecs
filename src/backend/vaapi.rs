@@ -164,7 +164,7 @@ impl libva::ExternalBufferDescriptor for UserPtrFrame {
     type DescriptorAttribute = libva::VASurfaceAttribExternalBuffers;
 
     fn va_surface_attribute(&mut self) -> Self::DescriptorAttribute {
-        let pitches = self
+        let pitches: [u32; 4] = self
             .layout
             .planes
             .iter()
@@ -173,8 +173,8 @@ impl libva::ExternalBufferDescriptor for UserPtrFrame {
             .take(4)
             .collect::<Vec<_>>()
             .try_into()
-            .unwrap();
-        let offsets = self
+            .expect("take(4) always yields exactly 4 elements");
+        let offsets: [u32; 4] = self
             .layout
             .planes
             .iter()
@@ -183,7 +183,7 @@ impl libva::ExternalBufferDescriptor for UserPtrFrame {
             .take(4)
             .collect::<Vec<_>>()
             .try_into()
-            .unwrap();
+            .expect("take(4) always yields exactly 4 elements");
 
         libva::VASurfaceAttribExternalBuffers {
             pixel_format: self.layout.format.0.into(),
@@ -223,7 +223,7 @@ impl libva::ExternalBufferDescriptor for DmabufFrame {
             .take(4)
             .collect::<Vec<_>>()
             .try_into()
-            .unwrap();
+            .expect("take(4) always yields exactly 4 elements");
 
         let layers = [
             libva::VADRMPRIMESurfaceDescriptorLayer {
@@ -239,7 +239,7 @@ impl libva::ExternalBufferDescriptor for DmabufFrame {
                     .take(4)
                     .collect::<Vec<_>>()
                     .try_into()
-                    .unwrap(),
+                    .expect("take(4) always yields exactly 4 elements"),
                 pitch: self
                     .layout
                     .planes
@@ -249,7 +249,7 @@ impl libva::ExternalBufferDescriptor for DmabufFrame {
                     .take(4)
                     .collect::<Vec<_>>()
                     .try_into()
-                    .unwrap(),
+                    .expect("take(4) always yields exactly 4 elements"),
             },
             Default::default(),
             Default::default(),

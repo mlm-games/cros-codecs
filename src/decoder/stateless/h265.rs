@@ -1187,7 +1187,9 @@ where
             // Ask the client to confirm the format before we can process this.
             DecodingState::FlushingForDRC | DecodingState::AwaitingFormat(_) => {
                 // Start signaling the awaiting format event to process a format change.
-                self.awaiting_format_event.write(1).unwrap();
+                if let Err(e) = self.awaiting_format_event.write(1) {
+                    log::error!("failed to signal awaiting format event: {:#}", e);
+                }
                 return Err(DecodeError::CheckEvents);
             }
             DecodingState::Decoding => {
@@ -1209,8 +1211,11 @@ where
         self.query_next_event(|decoder, sps| {
             // Apply the SPS settings to the decoder so we don't enter the AwaitingFormat state
             // on the next decode() call.
-            // TODO: unwrap this for now, but ideally change this closure to return Result
-            decoder.apply_sps(sps).unwrap();
+            // TODO: log this for now, but ideally change this (and other wherever suitable) closure to return Result
+
+            if let Err(e) = decoder.apply_sps(sps) {
+                log::error!("failed to apply SPS settings: {:#}", e);
+            }
         })
     }
 

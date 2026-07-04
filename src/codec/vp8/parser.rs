@@ -256,7 +256,7 @@ impl Header {
         let mut reader = BitReader::new(bitstream, false);
 
         let frame_tag =
-            reader.read_le::<u32>(3).map_err(ParseUncompressedChunkError::IoError)?;
+            reader.read_le::<u32>(3).map_err(|e| ParseUncompressedChunkError::IoError(e.to_string()))?;
 
         let mut header = Header {
             key_frame: (frame_tag & 0x1) == 0,
@@ -269,7 +269,7 @@ impl Header {
         if header.key_frame {
             let start_code = reader
                 .read_le::<u32>(3)
-                .map_err(ParseUncompressedChunkError::IoError)?;
+                .map_err(|e| ParseUncompressedChunkError::IoError(e.to_string()))?;
 
             if start_code != 0x2a019d {
                 return Err(ParseUncompressedChunkError::InvalidStartCode(start_code));
@@ -277,13 +277,13 @@ impl Header {
 
             let size_code = reader
                 .read_le::<u16>(2)
-                .map_err(ParseUncompressedChunkError::IoError)?;
+                .map_err(|e| ParseUncompressedChunkError::IoError(e.to_string()))?;
             header.horiz_scale_code = (size_code >> 14) as u8;
             header.width = size_code & 0x3fff;
 
             let size_code = reader
                 .read_le::<u16>(2)
-                .map_err(ParseUncompressedChunkError::IoError)?;
+                .map_err(|e| ParseUncompressedChunkError::IoError(e.to_string()))?;
             header.vert_scale_code = (size_code >> 14) as u8;
             header.height = size_code & 0x3fff;
         }

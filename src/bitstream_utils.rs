@@ -14,6 +14,45 @@ use std::marker::PhantomData;
 use crate::codec::h264::parser::Nalu as H264Nalu;
 use crate::codec::h265::parser::Nalu as H265Nalu;
 
+/// Errors that can occur during bitstream parsing via [`BitReader`].
+#[derive(Debug, Clone)]
+pub(crate) enum BitstreamError {
+    /// Reader ran out of bits before the read could complete.
+    OutOfBits,
+    /// A read of more than 31 bits was requested.
+    TooManyBitsRequested(usize),
+    /// Failed to convert the read value to the target type.
+    ConversionFailed,
+    /// Attempted an unaligned read operation.
+    UnalignedRead,
+    /// A custom error message.
+    Custom(String),
+}
+
+impl fmt::Display for BitstreamError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            BitstreamError::OutOfBits => write!(f, "reader ran out of bits"),
+            BitstreamError::TooManyBitsRequested(n) => {
+                write!(f, "more than 31 ({n}) bits were requested")
+            }
+            BitstreamError::ConversionFailed => {
+                write!(f, "failed to convert read input to target type")
+            }
+            BitstreamError::UnalignedRead => write!(f, "attempted unaligned read"),
+            BitstreamError::Custom(msg) => write!(f, "{msg}"),
+        }
+    }
+}
+
+impl std::error::Error for BitstreamError {}
+
+impl From<BitstreamError> for String {
+    fn from(err: BitstreamError) -> String {
+        err.to_string()
+    }
+}
+
 /// A bit reader for codec bitstreams. It properly handles emulation-prevention
 /// bytes and stop bits for H264.
 #[derive(Clone)]
@@ -35,44 +74,6 @@ pub(crate) struct BitReader<'a> {
     position: u64,
 }
 
-#[derive(Debug)]
-pub(crate) enum GetByteError {
-    OutOfBits,
-}
-
-impl fmt::Display for GetByteError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "reader ran out of bits")
-    }
-}
-
-#[derive(Debug)]
-pub(crate) enum ReadBitsError {
-    TooManyBitsRequested(usize),
-    GetByte(GetByteError),
-    ConversionFailed,
-}
-
-impl fmt::Display for ReadBitsError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            ReadBitsError::TooManyBitsRequested(bits) => {
-                write!(f, "more than 31 ({}) bits were requested", bits)
-            }
-            ReadBitsError::GetByte(_) => write!(f, "failed to advance the current byte"),
-            ReadBitsError::ConversionFailed => {
-                write!(f, "failed to convert read input to target type")
-            }
-        }
-    }
-}
-
-impl From<GetByteError> for ReadBitsError {
-    fn from(err: GetByteError) -> Self {
-        ReadBitsError::GetByte(err)
-    }
-}
-
 impl<'a> BitReader<'a> {
     pub fn new(data: &'a [u8], needs_epb: bool) -> Self {
         Self {
@@ -87,12 +88,12 @@ impl<'a> BitReader<'a> {
     }
 
     /// Read a single bit from the stream.
-    pub fn read_bit(&mut self) -> Result<bool, String> {
+    pub fn read_bit(&mut self) -> Result<bool, BitstreamError> {
         let bit = self.read_bits::<u32>(1)?;
         match bit {
             1 => Ok(true),
             0 => Ok(false),
-            _ => panic!("Unexpected value {}", bit),
+            _ => unreachable!("read_bits(1) returns 0 or 1"),
         }
     }
 
@@ -100,9 +101,9 @@ impl<'a> BitReader<'a> {
     /// bits even though we're returning a u32 because that would break the
     /// read_bits_signed() function. 31 bits should be overkill for compressed
     /// header parsing anyway.
-    pub fn read_bits<U: TryFrom<u32>>(&mut self, num_bits: usize) -> Result<U, String> {
+    pub fn read_bits<U: TryFrom<u32>>(&mut self, num_bits: usize) -> Result<U, BitstreamError> {
         if num_bits > 31 {
-            return Err(ReadBitsError::TooManyBitsRequested(num_bits).to_string());
+            return Err(BitstreamError::TooManyBitsRequested(num_bits));
         }
 
         let mut bits_left = num_bits;
@@ -111,7 +112,7 @@ impl<'a> BitReader<'a> {
         while self.num_remaining_bits_in_curr_byte < bits_left {
             out |= (self.curr_byte as u32) << (bits_left - self.num_remaining_bits_in_curr_byte);
             bits_left -= self.num_remaining_bits_in_curr_byte;
-            self.move_to_next_byte().map_err(|err| err.to_string())?;
+            self.move_to_next_byte()?;
         }
 
         out |= (self.curr_byte >> (self.num_remaining_bits_in_curr_byte - bits_left)) as u32;
@@ -119,33 +120,33 @@ impl<'a> BitReader<'a> {
         self.num_remaining_bits_in_curr_byte -= bits_left;
         self.position += num_bits as u64;
 
-        U::try_from(out).map_err(|_| ReadBitsError::ConversionFailed.to_string())
+        U::try_from(out).map_err(|_| BitstreamError::ConversionFailed)
     }
 
     /// Reads a two's complement signed integer of length |num_bits|.
-    pub fn read_bits_signed<U: TryFrom<i32>>(&mut self, num_bits: usize) -> Result<U, String> {
+    pub fn read_bits_signed<U: TryFrom<i32>>(&mut self, num_bits: usize) -> Result<U, BitstreamError> {
         let mut out: i32 = self
             .read_bits::<u32>(num_bits)?
             .try_into()
-            .map_err(|_| ReadBitsError::ConversionFailed.to_string())?;
+            .map_err(|_| BitstreamError::ConversionFailed)?;
         if out >> (num_bits - 1) != 0 {
             out |= -1i32 ^ ((1 << num_bits) - 1);
         }
 
-        U::try_from(out).map_err(|_| ReadBitsError::ConversionFailed.to_string())
+        U::try_from(out).map_err(|_| BitstreamError::ConversionFailed)
     }
 
     /// Reads an unsigned integer from the stream and checks if the stream is byte aligned.
-    pub fn read_bits_aligned<U: TryFrom<u32>>(&mut self, num_bits: usize) -> Result<U, String> {
+    pub fn read_bits_aligned<U: TryFrom<u32>>(&mut self, num_bits: usize) -> Result<U, BitstreamError> {
         if !self.num_remaining_bits_in_curr_byte.is_multiple_of(8) {
-            return Err("Attempted unaligned read_le()".into());
+            return Err(BitstreamError::UnalignedRead);
         }
 
-        self.read_bits(num_bits).map_err(|err| err.to_string())
+        self.read_bits(num_bits)
     }
 
     /// Skip `num_bits` bits from the stream.
-    pub fn skip_bits(&mut self, mut num_bits: usize) -> Result<(), String> {
+    pub fn skip_bits(&mut self, mut num_bits: usize) -> Result<(), BitstreamError> {
         while num_bits > 0 {
             let n = std::cmp::min(num_bits, 31);
             self.read_bits::<u32>(n)?;
@@ -158,8 +159,8 @@ impl<'a> BitReader<'a> {
     /// Returns the amount of bits left in the stream
     pub fn num_bits_left(&mut self) -> usize {
         let cur_pos = self.data.position();
-        // This should always be safe to unwrap.
-        let end_pos = self.data.seek(SeekFrom::End(0)).unwrap();
+        let end_pos = self.data.seek(SeekFrom::End(0))
+            .expect("Cursor over &[u8] never fails on seek");
         let _ = self.data.seek(SeekFrom::Start(cur_pos));
         ((end_pos - cur_pos) as usize) * 8 + self.num_remaining_bits_in_curr_byte
     }
@@ -197,33 +198,33 @@ impl<'a> BitReader<'a> {
     /// Reads an Unsigned Exponential golomb coding number from the next bytes in the
     /// bitstream. This may advance the state of position within the bitstream even if the
     /// read operation is unsuccessful. See H264 Annex B specification 9.1 for details.
-    pub fn read_ue<U: TryFrom<u32>>(&mut self) -> Result<U, String> {
+    pub fn read_ue<U: TryFrom<u32>>(&mut self) -> Result<U, BitstreamError> {
         let mut num_bits = 0;
 
         while self.read_bits::<u32>(1)? == 0 {
             num_bits += 1;
             if num_bits > 31 {
-                return Err("invalid stream".into());
+                return Err(BitstreamError::TooManyBitsRequested(num_bits));
             }
         }
 
         let value = ((1u32 << num_bits) - 1)
             .checked_add(self.read_bits::<u32>(num_bits)?)
-            .ok_or::<String>("read number cannot fit in 32 bits".into())?;
+            .ok_or(BitstreamError::Custom("read number cannot fit in 32 bits".into()))?;
 
-        U::try_from(value).map_err(|_| "conversion error".into())
+        U::try_from(value).map_err(|_| BitstreamError::ConversionFailed)
     }
 
-    pub fn read_ue_bounded<U: TryFrom<u32>>(&mut self, min: u32, max: u32) -> Result<U, String> {
+    pub fn read_ue_bounded<U: TryFrom<u32>>(&mut self, min: u32, max: u32) -> Result<U, BitstreamError> {
         let ue = self.read_ue()?;
         if ue > max || ue < min {
-            Err(format!("Value out of bounds: expected {} - {}, got {}", min, max, ue))
+            Err(BitstreamError::Custom(format!("Value out of bounds: expected {} - {}, got {}", min, max, ue)))
         } else {
-            Ok(U::try_from(ue).map_err(|_| String::from("Conversion error"))?)
+            Ok(U::try_from(ue).map_err(|_| BitstreamError::ConversionFailed)?)
         }
     }
 
-    pub fn read_ue_max<U: TryFrom<u32>>(&mut self, max: u32) -> Result<U, String> {
+    pub fn read_ue_max<U: TryFrom<u32>>(&mut self, max: u32) -> Result<U, BitstreamError> {
         self.read_ue_bounded(0, max)
     }
 
@@ -231,27 +232,29 @@ impl<'a> BitReader<'a> {
     /// complement, this scheme maps even integers to positive numbers and odd
     /// integers to negative numbers. The least significant bit indicates the
     /// sign. See H264 Annex B specification 9.1.1 for details.
-    pub fn read_se<U: TryFrom<i32>>(&mut self) -> Result<U, String> {
+    pub fn read_se<U: TryFrom<i32>>(&mut self) -> Result<U, BitstreamError> {
         let ue = self.read_ue::<u32>()? as i32;
 
-        if ue % 2 == 0 {
-            Ok(U::try_from(-(ue / 2)).map_err(|_| String::from("Conversion error"))?)
+        let result = if ue % 2 == 0 {
+            -(ue / 2)
         } else {
-            Ok(U::try_from(ue / 2 + 1).map_err(|_| String::from("Conversion error"))?)
-        }
+            ue / 2 + 1
+        };
+
+        Ok(U::try_from(result).map_err(|_| BitstreamError::ConversionFailed)?)
     }
 
-    pub fn read_se_bounded<U: TryFrom<i32>>(&mut self, min: i32, max: i32) -> Result<U, String> {
+    pub fn read_se_bounded<U: TryFrom<i32>>(&mut self, min: i32, max: i32) -> Result<U, BitstreamError> {
         let se = self.read_se()?;
         if se < min || se > max {
-            Err(format!("Value out of bounds, expected between {}-{}, got {}", min, max, se))
+            Err(BitstreamError::Custom(format!("Value out of bounds, expected between {}-{}, got {}", min, max, se)))
         } else {
-            Ok(U::try_from(se).map_err(|_| String::from("Conversion error"))?)
+            Ok(U::try_from(se).map_err(|_| BitstreamError::ConversionFailed)?)
         }
     }
 
     /// Read little endian multi-byte integer.
-    pub fn read_le<U: TryFrom<u32>>(&mut self, num_bits: u8) -> Result<U, String> {
+    pub fn read_le<U: TryFrom<u32>>(&mut self, num_bits: u8) -> Result<U, BitstreamError> {
         let mut t = 0u32;
 
         for i in 0..num_bits {
@@ -259,7 +262,7 @@ impl<'a> BitReader<'a> {
             t = t.wrapping_add(byte << (i * 8));
         }
 
-        U::try_from(t).map_err(|_| String::from("Conversion error"))
+        U::try_from(t).map_err(|_| BitstreamError::ConversionFailed)
     }
 
     /// Return the position of this bitstream in bits.
@@ -267,13 +270,13 @@ impl<'a> BitReader<'a> {
         self.position
     }
 
-    fn get_byte(&mut self) -> Result<u8, GetByteError> {
+    fn get_byte(&mut self) -> Result<u8, BitstreamError> {
         let mut buf = [0u8; 1];
-        self.data.read_exact(&mut buf).map_err(|_| GetByteError::OutOfBits)?;
+        self.data.read_exact(&mut buf).map_err(|_| BitstreamError::OutOfBits)?;
         Ok(buf[0])
     }
 
-    fn move_to_next_byte(&mut self) -> Result<(), GetByteError> {
+    fn move_to_next_byte(&mut self) -> Result<(), BitstreamError> {
         let mut byte = self.get_byte()?;
 
         if self.needs_epb {
@@ -304,7 +307,8 @@ impl<'a> IvfIterator<'a> {
         let mut cursor = Cursor::new(data);
 
         // Skip the IVH header entirely.
-        cursor.seek(std::io::SeekFrom::Start(32)).unwrap();
+        cursor.seek(std::io::SeekFrom::Start(32))
+            .expect("IVF header is at least 32 bytes");
 
         Self { cursor }
     }
