@@ -48,6 +48,7 @@ pub use libva;
 pub use v4l2r;
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
+#[non_exhaustive]
 pub enum FrameMemoryType {
     Managed,
     Prime,
@@ -69,6 +70,7 @@ impl FromStr for FrameMemoryType {
 
 /// Rounding modes for `Resolution`
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ResolutionRoundMode {
     /// Rounds component-wise to the next even value.
     Even,
@@ -197,6 +199,7 @@ impl std::fmt::Debug for Fourcc {
 ///
 /// The conventions here largely follow these of libyuv.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum DecodedFormat {
     /// Y, U and V planes, 4:2:0 sampling, 8 bits per sample.
     I420,
@@ -289,6 +292,7 @@ impl From<DecodedFormat> for Fourcc {
 }
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
+#[non_exhaustive]
 pub enum EncodedFormat {
     H264,
     #[cfg(feature = "h265")]
@@ -454,6 +458,7 @@ pub fn decoded_frame_size(format: DecodedFormat, width: usize, height: usize) ->
 
 /// Instructs on whether it should block on the operation(s).
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum BlockingMode {
     Blocking,
     #[default]

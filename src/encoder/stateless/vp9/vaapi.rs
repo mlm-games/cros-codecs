@@ -420,8 +420,8 @@ pub(super) mod tests {
 
             let frame_header = IvfFrameHeader { frame_size: output.len() as u32, timestamp: 0 };
 
-            file_header.writo_into(&mut out).unwrap();
-            frame_header.writo_into(&mut out).unwrap();
+            file_header.write_into(&mut out).unwrap();
+            frame_header.write_into(&mut out).unwrap();
 
             out.write_all(&output).unwrap();
             out.flush().unwrap();
@@ -495,7 +495,7 @@ pub(super) mod tests {
             FRAME_COUNT as u32,
         );
 
-        file_header.writo_into(&mut bitstream).unwrap();
+        file_header.write_into(&mut bitstream).unwrap();
 
         simple_encode_loop(&mut encoder, &mut frame_producer, |coded| {
             let header = IvfFrameHeader {
@@ -503,7 +503,7 @@ pub(super) mod tests {
                 frame_size: coded.bitstream.len() as u32,
             };
 
-            header.writo_into(&mut bitstream).unwrap();
+            header.write_into(&mut bitstream).unwrap();
             bitstream.extend(coded.bitstream);
         })
         .unwrap();
@@ -585,7 +585,7 @@ pub(super) mod tests {
             FRAME_COUNT as u32,
         );
 
-        file_header.writo_into(&mut bitstream).unwrap();
+        file_header.write_into(&mut bitstream).unwrap();
 
         simple_encode_loop(&mut encoder, &mut frame_producer, |coded| {
             let header = IvfFrameHeader {
@@ -593,7 +593,7 @@ pub(super) mod tests {
                 frame_size: coded.bitstream.len() as u32,
             };
 
-            header.writo_into(&mut bitstream).unwrap();
+            header.write_into(&mut bitstream).unwrap();
             bitstream.extend(coded.bitstream);
         })
         .unwrap();

@@ -386,7 +386,7 @@ impl IvfFileHeader {
 
 impl IvfFileHeader {
     /// Writes header into writer
-    pub fn writo_into(&self, writer: &mut impl std::io::Write) -> std::io::Result<()> {
+    pub fn write_into(&self, writer: &mut impl std::io::Write) -> std::io::Result<()> {
         writer.write_all(&self.magic)?;
         writer.write_all(&self.version.to_le_bytes())?;
         writer.write_all(&self.header_size.to_le_bytes())?;
@@ -410,7 +410,7 @@ pub struct IvfFrameHeader {
 
 impl IvfFrameHeader {
     /// Writes header into writer
-    pub fn writo_into(&self, writer: &mut impl std::io::Write) -> std::io::Result<()> {
+    pub fn write_into(&self, writer: &mut impl std::io::Write) -> std::io::Result<()> {
         writer.write_all(&self.frame_size.to_le_bytes())?;
         writer.write_all(&self.timestamp.to_le_bytes())?;
         Ok(())
@@ -572,7 +572,7 @@ mod tests {
         };
 
         let mut buf = Vec::new();
-        hdr.writo_into(&mut buf).unwrap();
+        hdr.write_into(&mut buf).unwrap();
 
         const EXPECTED: [u8; 32] = [
             0x44, 0x4b, 0x49, 0x46, 0x00, 0x00, 0x20, 0x00, 0x56, 0x50, 0x39, 0x30, 0x00, 0x01,
@@ -589,7 +589,7 @@ mod tests {
         hdr.frame_count = 100;
 
         buf.clear();
-        hdr.writo_into(&mut buf).unwrap();
+        hdr.write_into(&mut buf).unwrap();
 
         const EXPECTED2: [u8; 32] = [
             0x44, 0x4b, 0x49, 0x46, 0x00, 0x00, 0x20, 0x00, 0x56, 0x50, 0x39, 0x30, 0x80, 0x07,
@@ -605,7 +605,7 @@ mod tests {
         let mut hdr = IvfFrameHeader { frame_size: 199249, timestamp: 0 };
 
         let mut buf = Vec::new();
-        hdr.writo_into(&mut buf).unwrap();
+        hdr.write_into(&mut buf).unwrap();
 
         const EXPECTED: [u8; 12] =
             [0x51, 0x0a, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
@@ -616,7 +616,7 @@ mod tests {
         hdr.frame_size = 52;
 
         buf.clear();
-        hdr.writo_into(&mut buf).unwrap();
+        hdr.write_into(&mut buf).unwrap();
 
         const EXPECTED2: [u8; 12] =
             [0x34, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];

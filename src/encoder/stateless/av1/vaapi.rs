@@ -1117,7 +1117,7 @@ mod tests {
             let file_header =
                 IvfFileHeader::new(IvfFileHeader::CODEC_AV1, WIDTH as u16, HEIGHT as u16, 30, 10);
 
-            file_header.writo_into(&mut out).unwrap();
+            file_header.write_into(&mut out).unwrap();
 
             {
                 let mut hdr_buf = Vec::new();
@@ -1132,7 +1132,7 @@ mod tests {
                     timestamp: 0,
                 };
 
-                frame_header.writo_into(&mut out).unwrap();
+                frame_header.write_into(&mut out).unwrap();
                 out.write_all(&hdr_buf).unwrap();
                 out.write_all(&output).unwrap();
             }
@@ -1209,7 +1209,7 @@ mod tests {
             FRAME_COUNT as u32,
         );
 
-        file_header.writo_into(&mut bitstream).unwrap();
+        file_header.write_into(&mut bitstream).unwrap();
 
         simple_encode_loop(&mut encoder, &mut frame_producer, |coded| {
             let header = IvfFrameHeader {
@@ -1217,7 +1217,7 @@ mod tests {
                 frame_size: coded.bitstream.len() as u32,
             };
 
-            header.writo_into(&mut bitstream).unwrap();
+            header.write_into(&mut bitstream).unwrap();
             bitstream.extend(coded.bitstream);
         })
         .unwrap();
@@ -1300,7 +1300,7 @@ mod tests {
             FRAME_COUNT as u32,
         );
 
-        file_header.writo_into(&mut bitstream).unwrap();
+        file_header.write_into(&mut bitstream).unwrap();
 
         simple_encode_loop(&mut encoder, &mut frame_producer, |coded| {
             let header = IvfFrameHeader {
@@ -1308,7 +1308,7 @@ mod tests {
                 frame_size: coded.bitstream.len() as u32,
             };
 
-            header.writo_into(&mut bitstream).unwrap();
+            header.write_into(&mut bitstream).unwrap();
             bitstream.extend(coded.bitstream);
         })
         .unwrap();

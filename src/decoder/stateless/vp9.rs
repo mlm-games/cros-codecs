@@ -190,7 +190,7 @@ where
             &self.codec.segmentation,
         )?;
 
-        eprintln!(
+        log::debug!(
             "[VP9] handle_frame: w={} h={} show_frame={} show_existing={} refresh_flags={:#x}",
             frame.header.width,
             frame.header.height,
@@ -211,10 +211,10 @@ where
         )?;
 
         if frame.header.show_frame {
-            eprintln!("[VP9] pushing to ready_queue (len_before={})", self.ready_queue.queue.len());
+            log::debug!("[VP9] pushing to ready_queue (len_before={})", self.ready_queue.queue.len());
             self.ready_queue.push(decoded_handle);
         } else {
-            eprintln!("[VP9] show_frame=false, NOT pushing to ready_queue");
+            log::debug!("[VP9] show_frame=false, NOT pushing to ready_queue");
         }
 
         Ok(())

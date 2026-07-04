@@ -149,7 +149,7 @@ struct ReadyFramesQueue<T> {
 }
 
 impl<T> ReadyFramesQueue<T> {
-    /// Create a nwe `ReadyFramesQueue`.
+    /// Create a new `ReadyFramesQueue`.
     ///
     /// This can only fail if the `EventFd` creation fails ; in this case the corresponding `Errno`
     /// is returned.

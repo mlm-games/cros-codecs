@@ -1046,7 +1046,7 @@ where
                 .context("Invalid PPS in handle_picture")?,
         );
 
-        // A picture's SPS may require negociation.
+        // A picture's SPS may require negotiation.
         self.renegotiate_if_needed(&pps.sps)?;
         if let DecodingState::AwaitingFormat(_) = &self.decoding_state {
             return Err(DecodeError::CheckEvents);

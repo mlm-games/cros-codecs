@@ -165,7 +165,7 @@ mod tests {
             FRAME_COUNT as u32,
         );
 
-        file_header.writo_into(&mut bitstream).unwrap();
+        file_header.write_into(&mut bitstream).unwrap();
 
         let buffer_size =
             format.plane_fmt.iter().map(|plane| plane.sizeimage).max().unwrap() as usize;
@@ -181,7 +181,7 @@ mod tests {
                 frame_size: frame_bitstream.len() as u32,
             };
 
-            header.writo_into(&mut bitstream).unwrap();
+            header.write_into(&mut bitstream).unwrap();
             bitstream.extend(frame_bitstream);
         })
         .expect("encode loop");
@@ -229,7 +229,7 @@ mod tests {
             FRAME_COUNT as u32,
         );
 
-        file_header.writo_into(&mut bitstream).unwrap();
+        file_header.write_into(&mut bitstream).unwrap();
 
         perform_v4l2_encoder_mmap_test(FRAME_COUNT, encoder, |coded| {
             // Skip Duck IVF frame header from v4l2 stream, and replace with ours with correct
@@ -241,7 +241,7 @@ mod tests {
                 frame_size: frame_bitstream.len() as u32,
             };
 
-            header.writo_into(&mut bitstream).unwrap();
+            header.write_into(&mut bitstream).unwrap();
             bitstream.extend(frame_bitstream);
         });
 
@@ -298,7 +298,7 @@ mod tests {
             FRAME_COUNT as u32,
         );
 
-        file_header.writo_into(&mut bitstream).unwrap();
+        file_header.write_into(&mut bitstream).unwrap();
 
         perform_v4l2_encoder_dmabuf_test(
             CODED_SIZE,
@@ -316,7 +316,7 @@ mod tests {
                     frame_size: frame_bitstream.len() as u32,
                 };
 
-                header.writo_into(&mut bitstream).unwrap();
+                header.write_into(&mut bitstream).unwrap();
                 bitstream.extend(frame_bitstream);
             },
         );

@@ -230,7 +230,7 @@ where
     type CodedPromise: BackendPromise<Output = CodedBitstreamBuffer>;
 
     /// Codec specific [`BackendPromise`] for [`StatelessCodec::Reference`] wrapping a
-    /// backend speficic [`StatelessVideoEncoderBackend::ReconPromise`]
+    /// backend specific [`StatelessVideoEncoderBackend::ReconPromise`]
     type ReferencePromise: BackendPromise<Output = Self::Reference>;
 }
 

@@ -128,7 +128,7 @@ where
     /// Handles the [`BackendOutput`] from the backend, ie add to the queue for client to poll.
     fn handle_output(&mut self, output: BackendOutput) -> EncodeResult<()> {
         log::debug!(
-            "Backend yieled output buffer for request id={:?} timestamp={} bytes={}",
+            "Backend yielded output buffer for request id={:?} timestamp={} bytes={}",
             output.request_id,
             output.buffer.metadata.timestamp,
             output.buffer.bitstream.len()

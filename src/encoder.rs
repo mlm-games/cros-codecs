@@ -24,6 +24,7 @@ use crate::encoder::stateless::StatelessBackendError;
 
 /// Specifies the encoder operation
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum RateControl {
     /// The encoder shall maintain the constant bitrate
     ConstantBitrate(u64),
@@ -60,6 +61,7 @@ impl RateControl {
 }
 
 #[derive(Clone)]
+#[non_exhaustive]
 pub enum PredictionStructure {
     /// Simplest prediction structure, suitable eg. for RTC. Interframe is produced at the start of
     /// the stream and every time when `limit` frames are reached. Following interframe frames

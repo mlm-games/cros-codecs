@@ -237,14 +237,14 @@ fn main() {
             args.framerate,
             args.count as u32,
         );
-        hdr.writo_into(&mut *output_file.lock().unwrap()).expect("Error writing IVF file header!");
+        hdr.write_into(&mut *output_file.lock().unwrap()).expect("Error writing IVF file header!");
     }
     let codec_ = codec.clone();
     let work_done_cb = move |job: C2EncodeJob<PooledVideoFrame<GenericDmaVideoFrame>>| {
         if codec_ != Codec::H264 {
             let hdr =
                 IvfFrameHeader { timestamp: job.timestamp, frame_size: job.output.len() as u32 };
-            hdr.writo_into(&mut *output_file.lock().unwrap())
+            hdr.write_into(&mut *output_file.lock().unwrap())
                 .expect("Error writing IVF frame header!");
         }
         let _ = (*output_file.lock().unwrap())
