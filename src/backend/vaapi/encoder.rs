@@ -61,7 +61,11 @@ pub(crate) fn tunings_to_libva_rc<const CLAMP_MIN_QP: u32, const CLAMP_MAX_QP: u
     let target_bits_per_second =
         u32::try_from(target_bits_per_second).map_err(|e| anyhow::anyhow!(e))?;
 
-    let target_percentage: u32 = 100 * target_bits_per_second / bits_per_second;
+    let target_percentage: u32 = if bits_per_second > 0 {
+        100 * target_bits_per_second / bits_per_second
+    } else {
+        0
+    };
 
     // Window size in ms that the RC should apply to
     const WINDOW_SIZE: u32 = 1_500;
