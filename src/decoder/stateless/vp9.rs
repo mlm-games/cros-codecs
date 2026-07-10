@@ -211,7 +211,10 @@ where
         )?;
 
         if frame.header.show_frame {
-            log::debug!("[VP9] pushing to ready_queue (len_before={})", self.ready_queue.queue.len());
+            log::debug!(
+                "[VP9] pushing to ready_queue (len_before={})",
+                self.ready_queue.queue.len()
+            );
             self.ready_queue.push(decoded_handle);
         } else {
             log::debug!("[VP9] show_frame=false, NOT pushing to ready_queue");

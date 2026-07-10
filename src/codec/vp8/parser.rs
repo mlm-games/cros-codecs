@@ -255,8 +255,9 @@ impl Header {
 
         let mut reader = BitReader::new(bitstream, false);
 
-        let frame_tag =
-            reader.read_le::<u32>(3).map_err(|e| ParseUncompressedChunkError::IoError(e.to_string()))?;
+        let frame_tag = reader
+            .read_le::<u32>(3)
+            .map_err(|e| ParseUncompressedChunkError::IoError(e.to_string()))?;
 
         let mut header = Header {
             key_frame: (frame_tag & 0x1) == 0,

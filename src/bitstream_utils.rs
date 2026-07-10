@@ -124,7 +124,10 @@ impl<'a> BitReader<'a> {
     }
 
     /// Reads a two's complement signed integer of length |num_bits|.
-    pub fn read_bits_signed<U: TryFrom<i32>>(&mut self, num_bits: usize) -> Result<U, BitstreamError> {
+    pub fn read_bits_signed<U: TryFrom<i32>>(
+        &mut self,
+        num_bits: usize,
+    ) -> Result<U, BitstreamError> {
         let mut out: i32 = self
             .read_bits::<u32>(num_bits)?
             .try_into()
@@ -137,7 +140,10 @@ impl<'a> BitReader<'a> {
     }
 
     /// Reads an unsigned integer from the stream and checks if the stream is byte aligned.
-    pub fn read_bits_aligned<U: TryFrom<u32>>(&mut self, num_bits: usize) -> Result<U, BitstreamError> {
+    pub fn read_bits_aligned<U: TryFrom<u32>>(
+        &mut self,
+        num_bits: usize,
+    ) -> Result<U, BitstreamError> {
         if !self.num_remaining_bits_in_curr_byte.is_multiple_of(8) {
             return Err(BitstreamError::UnalignedRead);
         }
@@ -159,8 +165,8 @@ impl<'a> BitReader<'a> {
     /// Returns the amount of bits left in the stream
     pub fn num_bits_left(&mut self) -> usize {
         let cur_pos = self.data.position();
-        let end_pos = self.data.seek(SeekFrom::End(0))
-            .expect("Cursor over &[u8] never fails on seek");
+        let end_pos =
+            self.data.seek(SeekFrom::End(0)).expect("Cursor over &[u8] never fails on seek");
         let _ = self.data.seek(SeekFrom::Start(cur_pos));
         ((end_pos - cur_pos) as usize) * 8 + self.num_remaining_bits_in_curr_byte
     }
@@ -215,10 +221,17 @@ impl<'a> BitReader<'a> {
         U::try_from(value).map_err(|_| BitstreamError::ConversionFailed)
     }
 
-    pub fn read_ue_bounded<U: TryFrom<u32>>(&mut self, min: u32, max: u32) -> Result<U, BitstreamError> {
+    pub fn read_ue_bounded<U: TryFrom<u32>>(
+        &mut self,
+        min: u32,
+        max: u32,
+    ) -> Result<U, BitstreamError> {
         let ue = self.read_ue()?;
         if ue > max || ue < min {
-            Err(BitstreamError::Custom(format!("Value out of bounds: expected {} - {}, got {}", min, max, ue)))
+            Err(BitstreamError::Custom(format!(
+                "Value out of bounds: expected {} - {}, got {}",
+                min, max, ue
+            )))
         } else {
             Ok(U::try_from(ue).map_err(|_| BitstreamError::ConversionFailed)?)
         }
@@ -235,19 +248,22 @@ impl<'a> BitReader<'a> {
     pub fn read_se<U: TryFrom<i32>>(&mut self) -> Result<U, BitstreamError> {
         let ue = self.read_ue::<u32>()? as i32;
 
-        let result = if ue % 2 == 0 {
-            -(ue / 2)
-        } else {
-            ue / 2 + 1
-        };
+        let result = if ue % 2 == 0 { -(ue / 2) } else { ue / 2 + 1 };
 
         Ok(U::try_from(result).map_err(|_| BitstreamError::ConversionFailed)?)
     }
 
-    pub fn read_se_bounded<U: TryFrom<i32>>(&mut self, min: i32, max: i32) -> Result<U, BitstreamError> {
+    pub fn read_se_bounded<U: TryFrom<i32>>(
+        &mut self,
+        min: i32,
+        max: i32,
+    ) -> Result<U, BitstreamError> {
         let se = self.read_se()?;
         if se < min || se > max {
-            Err(BitstreamError::Custom(format!("Value out of bounds, expected between {}-{}, got {}", min, max, se)))
+            Err(BitstreamError::Custom(format!(
+                "Value out of bounds, expected between {}-{}, got {}",
+                min, max, se
+            )))
         } else {
             Ok(U::try_from(se).map_err(|_| BitstreamError::ConversionFailed)?)
         }
@@ -307,8 +323,7 @@ impl<'a> IvfIterator<'a> {
         let mut cursor = Cursor::new(data);
 
         // Skip the IVH header entirely.
-        cursor.seek(std::io::SeekFrom::Start(32))
-            .expect("IVF header is at least 32 bytes");
+        cursor.seek(std::io::SeekFrom::Start(32)).expect("IVF header is at least 32 bytes");
 
         Self { cursor }
     }

@@ -54,24 +54,15 @@ impl From<libva::VaError> for StatelessBackendError {
 pub(crate) fn tunings_to_libva_rc<const CLAMP_MIN_QP: u32, const CLAMP_MAX_QP: u32>(
     tunings: &Tunings,
 ) -> StatelessBackendResult<libva::EncMiscParameterRateControl> {
-    let bits_per_second = tunings
-        .rate_control
-        .bitrate_maximum()
-        .unwrap_or(1_000_000);
-    let target_bits_per_second = tunings
-        .rate_control
-        .bitrate_target()
-        .unwrap_or(bits_per_second);
+    let bits_per_second = tunings.rate_control.bitrate_maximum().unwrap_or(1_000_000);
+    let target_bits_per_second = tunings.rate_control.bitrate_target().unwrap_or(bits_per_second);
 
     let bits_per_second = u32::try_from(bits_per_second).map_err(|e| anyhow::anyhow!(e))?;
     let target_bits_per_second =
         u32::try_from(target_bits_per_second).map_err(|e| anyhow::anyhow!(e))?;
 
-    let target_percentage: u32 = if bits_per_second > 0 {
-        100 * target_bits_per_second / bits_per_second
-    } else {
-        0
-    };
+    let target_percentage: u32 =
+        if bits_per_second > 0 { 100 * target_bits_per_second / bits_per_second } else { 0 };
 
     // Window size in ms that the RC should apply to
     const WINDOW_SIZE: u32 = 1_500;

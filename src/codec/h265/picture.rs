@@ -80,24 +80,23 @@ impl PictureData {
         // Compute the Picture Order Count. See 8.3.1 Decoding Process for
         // Picture Order Count
         if !(nalu_type.is_irap() && no_rasl_output_flag)
-            && let Some(prev_tid0_pic) = prev_tid0_pic {
-                // Equation (8-1)
-                let prev_pic_order_cnt_lsb = prev_tid0_pic.slice_pic_order_cnt_lsb;
-                let prev_pic_order_cnt_msb = prev_tid0_pic.pic_order_cnt_msb;
-                if (slice_pic_order_cnt_lsb < prev_pic_order_cnt_lsb)
-                    && (prev_pic_order_cnt_lsb - slice_pic_order_cnt_lsb)
-                        >= (max_pic_order_cnt_lsb / 2)
-                {
-                    pic_order_cnt_msb = prev_pic_order_cnt_msb + max_pic_order_cnt_lsb;
-                } else if (slice_pic_order_cnt_lsb > prev_pic_order_cnt_lsb)
-                    && (slice_pic_order_cnt_lsb - prev_pic_order_cnt_lsb)
-                        > (max_pic_order_cnt_lsb / 2)
-                {
-                    pic_order_cnt_msb = prev_pic_order_cnt_msb - max_pic_order_cnt_lsb;
-                } else {
-                    pic_order_cnt_msb = prev_pic_order_cnt_msb;
-                }
+            && let Some(prev_tid0_pic) = prev_tid0_pic
+        {
+            // Equation (8-1)
+            let prev_pic_order_cnt_lsb = prev_tid0_pic.slice_pic_order_cnt_lsb;
+            let prev_pic_order_cnt_msb = prev_tid0_pic.pic_order_cnt_msb;
+            if (slice_pic_order_cnt_lsb < prev_pic_order_cnt_lsb)
+                && (prev_pic_order_cnt_lsb - slice_pic_order_cnt_lsb) >= (max_pic_order_cnt_lsb / 2)
+            {
+                pic_order_cnt_msb = prev_pic_order_cnt_msb + max_pic_order_cnt_lsb;
+            } else if (slice_pic_order_cnt_lsb > prev_pic_order_cnt_lsb)
+                && (slice_pic_order_cnt_lsb - prev_pic_order_cnt_lsb) > (max_pic_order_cnt_lsb / 2)
+            {
+                pic_order_cnt_msb = prev_pic_order_cnt_msb - max_pic_order_cnt_lsb;
+            } else {
+                pic_order_cnt_msb = prev_pic_order_cnt_msb;
             }
+        }
 
         // Compute whether this picture will be a valid prevTid0Pic, i.e.:
         //

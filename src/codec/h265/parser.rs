@@ -1522,7 +1522,6 @@ impl SliceType {
     }
 }
 
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SliceHeader {
     /// When set, specifies that the slice segment is the first slice segment of

@@ -255,15 +255,14 @@ impl PictureData {
         log::debug!("Set reference of {:#?} to {:?}", self, reference);
         self.reference = reference;
 
-        if apply_to_other_field
-            && let Some(other_field) = self.other_field() {
-                log::debug!(
-                    "other_field: Set reference of {:#?} to {:?}",
-                    &other_field.borrow(),
-                    reference
-                );
-                other_field.borrow_mut().reference = reference;
-            }
+        if apply_to_other_field && let Some(other_field) = self.other_field() {
+            log::debug!(
+                "other_field: Set reference of {:#?} to {:?}",
+                &other_field.borrow(),
+                reference
+            );
+            other_field.borrow_mut().reference = reference;
+        }
     }
 
     /// Get a reference to the picture's other field, if there is any

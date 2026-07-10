@@ -191,10 +191,7 @@ impl<T: Clone> Dpb<T> {
     /// Find the short term reference picture with the lowest `frame_num_wrap`
     /// value.
     pub fn find_short_term_lowest_frame_num_wrap(&self) -> Option<&DpbEntry<T>> {
-        
-
-        self
-            .entries
+        self.entries
             .iter()
             .filter(|h| {
                 let p = h.pic.borrow();
@@ -507,10 +504,11 @@ impl<T: Clone> Dpb<T> {
         // picture and the complementary reference field pair are also marked as
         // "used for short-term reference".
         if let FieldRank::Second(other_field) = pic.field_rank()
-            && matches!(other_field.borrow().reference(), Reference::ShortTerm) {
-                pic.set_reference(Reference::ShortTerm, false);
-                return;
-            }
+            && matches!(other_field.borrow().reference(), Reference::ShortTerm)
+        {
+            pic.set_reference(Reference::ShortTerm, false);
+            return;
+        }
 
         let mut num_ref_pics = self.num_ref_frames();
         let max_num_ref_frames = std::cmp::max(1, sps.max_num_ref_frames as usize);
@@ -976,7 +974,10 @@ impl<T: Clone> Dpb<T> {
 
     // 8.2.4.2.3 Initialization process for reference picture lists for B slices
     // in frames
-    fn build_ref_pic_list_b(&self, cur_pic: &PictureData) -> (DpbPicRefList<'_, T>, DpbPicRefList<'_, T>) {
+    fn build_ref_pic_list_b(
+        &self,
+        cur_pic: &PictureData,
+    ) -> (DpbPicRefList<'_, T>, DpbPicRefList<'_, T>) {
         let mut short_term_refs: Vec<_> =
             self.short_term_refs_iter().filter(|h| !h.pic.borrow().is_second_field()).collect();
 

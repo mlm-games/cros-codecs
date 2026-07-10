@@ -114,38 +114,59 @@ impl VaStreamInfo for &Sps {
             std::cmp::max(self.bit_depth_luma_minus8 + 8, self.bit_depth_chroma_minus8 + 8);
 
         let chroma_format_idc = self.chroma_format_idc;
-        let err = Err(anyhow!(
-            "Invalid combination of profile, bit depth an chroma_format_idc: ({:?}, {}, {}",
-            profile,
-            bit_depth,
-            chroma_format_idc
-        ));
 
-        // TODO: This can still be much improved in light of table A.2.
+        let unsupported = || {
+            anyhow!(
+                "unsupported HEVC profile/bit-depth/chroma combination: \
+                 profile={:?}, bit_depth={}, chroma_format_idc={}",
+                profile,
+                bit_depth,
+                chroma_format_idc
+            )
+        };
+
         match profile {
-            Profile::Main | Profile::MainStill | Profile::Main10 => {
+            Profile::Main => match (bit_depth, chroma_format_idc) {
+                (8, 0 | 1) => Ok(libva::VAProfile::VAProfileHEVCMain),
+                _ => Err(unsupported()),
+            },
+
+            Profile::Main10 => match (bit_depth, chroma_format_idc) {
+                (8..=10, 0 | 1) => Ok(libva::VAProfile::VAProfileHEVCMain10),
+                _ => Err(unsupported()),
+            },
+
+            Profile::MainStill => match (bit_depth, chroma_format_idc) {
+                (8, 0 | 1) => Ok(libva::VAProfile::VAProfileHEVCMain),
+                _ => Err(unsupported()),
+            },
+
+            Profile::RangeExtensions => match (bit_depth, chroma_format_idc) {
+                (8, 0 | 1) => Ok(libva::VAProfile::VAProfileHEVCMain),
+                (9..=10, 0 | 1) => Ok(libva::VAProfile::VAProfileHEVCMain10),
+                (11..=12, 0 | 1) => Ok(libva::VAProfile::VAProfileHEVCMain12),
+
+                (8..=10, 2) => Ok(libva::VAProfile::VAProfileHEVCMain422_10),
+                (11..=12, 2) => Ok(libva::VAProfile::VAProfileHEVCMain422_12),
+
+                (8, 3) => Ok(libva::VAProfile::VAProfileHEVCMain444),
+                (9..=10, 3) => Ok(libva::VAProfile::VAProfileHEVCMain444_10),
+                (11..=12, 3) => Ok(libva::VAProfile::VAProfileHEVCMain444_12),
+
+                _ => Err(unsupported()),
+            },
+
+            Profile::ScreenContentCoding | Profile::HighThroughputScreenContentCoding => {
                 match (bit_depth, chroma_format_idc) {
-                    (8, 0) | (8, 1) => Ok(libva::VAProfile::VAProfileHEVCMain),
-                    (8, 3) => Ok(libva::VAProfile::VAProfileHEVCMain444),
-                    (10, 0) | (10, 1) => Ok(libva::VAProfile::VAProfileHEVCMain10),
-                    (10, 2) => Ok(libva::VAProfile::VAProfileHEVCMain422_10),
-                    (12, 1) => Ok(libva::VAProfile::VAProfileHEVCMain12),
-                    (12, 2) => Ok(libva::VAProfile::VAProfileHEVCMain422_12),
-                    (12, 3) => Ok(libva::VAProfile::VAProfileHEVCMain444_12),
-                    _ => err,
+                    (8, 0 | 1) => Ok(libva::VAProfile::VAProfileHEVCSccMain),
+                    (9..=10, 0 | 1) => Ok(libva::VAProfile::VAProfileHEVCSccMain10),
+                    (8, 3) => Ok(libva::VAProfile::VAProfileHEVCSccMain444),
+                    (9..=10, 3) => Ok(libva::VAProfile::VAProfileHEVCSccMain444_10),
+                    _ => Err(unsupported()),
                 }
             }
 
-            // See table A.4.
-            Profile::ScalableMain => match (bit_depth, chroma_format_idc) {
-                (8, 1) => Ok(libva::VAProfile::VAProfileHEVCSccMain),
-                (8, 3) => Ok(libva::VAProfile::VAProfileHEVCSccMain444),
-                (10, 1) => Ok(libva::VAProfile::VAProfileHEVCSccMain10),
-                (10, 3) => Ok(libva::VAProfile::VAProfileHEVCSccMain444_10),
-                _ => err,
-            },
-
-            _ => unimplemented!("Adding more profile support based on A.3. is still TODO"),
+            _ => Err(unsupported()),
         }
     }
 
@@ -287,7 +308,7 @@ fn is_scc_ext_profile(va_profile: libva::VAProfile::Type) -> bool {
         libva::VAProfile::VAProfileHEVCSccMain
             | libva::VAProfile::VAProfileHEVCSccMain10
             | libva::VAProfile::VAProfileHEVCSccMain444
-            | libva::VAProfile::VAProfileHEVCMain444_10,
+            | libva::VAProfile::VAProfileHEVCSccMain444_10,
     )
 }
 
@@ -861,7 +882,10 @@ impl<V: VideoFrame> StatelessDecoder<H265, VaapiBackend<V>> {
         display: Arc<Display>,
         blocking_mode: BlockingMode,
     ) -> Result<Self, NewStatelessDecoderError> {
-        Self::new(VaapiBackend::new(display, false).map_err(NewStatelessDecoderError::VaapiBackend)?, blocking_mode)
+        Self::new(
+            VaapiBackend::new(display, false).map_err(NewStatelessDecoderError::VaapiBackend)?,
+            blocking_mode,
+        )
     }
 }
 

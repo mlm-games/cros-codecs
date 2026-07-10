@@ -3134,9 +3134,7 @@ impl Parser {
             fg.film_grain_params_ref_idx = r.0.read_bits::<u32>(3)? as u8;
             let temp_grain_seed = fg.grain_seed;
 
-            if !fh
-                .ref_frame_idx.contains(&fg.film_grain_params_ref_idx)
-            {
+            if !fh.ref_frame_idx.contains(&fg.film_grain_params_ref_idx) {
                 return Err("Invalid film_grain_params_ref_idx".into());
             }
 

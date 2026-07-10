@@ -68,6 +68,21 @@ impl<V: VideoFrame> DecodedHandleTrait for DecodedHandle<V> {
     }
 }
 
+fn decoded_format_from_rt_format(rt_format: u32) -> anyhow::Result<DecodedFormat> {
+    match rt_format {
+        libva::VA_RT_FORMAT_YUV420 => Ok(DecodedFormat::NV12),
+        libva::VA_RT_FORMAT_YUV422 => Ok(DecodedFormat::I422),
+        libva::VA_RT_FORMAT_YUV444 => Ok(DecodedFormat::I444),
+        libva::VA_RT_FORMAT_YUV420_10 => Ok(DecodedFormat::I010),
+        libva::VA_RT_FORMAT_YUV420_12 => Ok(DecodedFormat::I012),
+        libva::VA_RT_FORMAT_YUV422_10 => Ok(DecodedFormat::I210),
+        libva::VA_RT_FORMAT_YUV422_12 => Ok(DecodedFormat::I212),
+        libva::VA_RT_FORMAT_YUV444_10 => Ok(DecodedFormat::I410),
+        libva::VA_RT_FORMAT_YUV444_12 => Ok(DecodedFormat::I412),
+        _ => Err(anyhow!("unsupported VA RT format: {}", rt_format)),
+    }
+}
+
 /// A trait for providing the basic information needed to setup libva for decoding.
 pub(crate) trait VaStreamInfo {
     /// Returns the VA profile of the stream.
@@ -200,7 +215,10 @@ pub struct VaapiBackend<V: VideoFrame> {
 }
 
 impl<V: VideoFrame> VaapiBackend<V> {
-    pub(crate) fn new(display: Arc<libva::Display>, supports_context_reuse: bool) -> Result<Self, anyhow::Error> {
+    pub(crate) fn new(
+        display: Arc<libva::Display>,
+        supports_context_reuse: bool,
+    ) -> Result<Self, anyhow::Error> {
         let init_stream_info = StreamInfo {
             format: DecodedFormat::NV12,
             coded_resolution: Resolution::from((128, 128)),
@@ -252,18 +270,21 @@ impl<V: VideoFrame> VaapiBackend<V> {
     where
         for<'a> &'a StreamData: VaStreamInfo,
     {
+        let rt_format =
+            stream_params.rt_format().map_err(|e| anyhow!("Could not get VA RT format: {e}"))?;
+
         self.stream_info.display_resolution = Resolution::from(stream_params.visible_rect());
         self.stream_info.coded_resolution = stream_params.coded_size().clone();
         self.stream_info.min_num_frames = stream_params.min_num_surfaces();
+        self.stream_info.format = decoded_format_from_rt_format(rt_format)?;
 
         // TODO: Handle context re-use
-        // TODO: We should obtain RT_FORMAT from stream_info
         let config = self
             .display
             .create_config(
                 vec![libva::VAConfigAttrib {
                     type_: libva::VAConfigAttribType::VAConfigAttribRTFormat,
-                    value: libva::VA_RT_FORMAT_YUV420,
+                    value: rt_format,
                 }],
                 stream_params.va_profile().map_err(|_| anyhow!("Could not get VAProfile!"))?,
                 libva::VAEntrypoint::VAEntrypointVLD,

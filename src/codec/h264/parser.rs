@@ -533,7 +533,6 @@ impl SliceType {
     }
 }
 
-
 #[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum Profile {

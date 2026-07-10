@@ -185,13 +185,19 @@ where
                     Some(DecoderEvent::FormatChanged) => {
                         let stream_info: Option<StreamInfo> = {
                             #[cfg(feature = "gbm")]
-                            { stream_info_gbm.clone() }
+                            {
+                                stream_info_gbm.clone()
+                            }
                             #[cfg(not(feature = "gbm"))]
                             {
                                 #[cfg(feature = "v4l2")]
-                                { stream_info_v4l2.clone() }
+                                {
+                                    stream_info_v4l2.clone()
+                                }
                                 #[cfg(not(feature = "v4l2"))]
-                                { None }
+                                {
+                                    None
+                                }
                             }
                         };
                         match stream_info {
