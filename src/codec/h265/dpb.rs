@@ -132,7 +132,7 @@ impl<T: Clone> Dpb<T> {
             || self.entries().len() >= max_dec_pic_buffering
     }
 
-    /// Find the lowest POC in the DPB that can be bumped.
+    /// Find the lowest POC in the DPB that can be bumped (per spec C.5.2.4).
     fn find_lowest_poc_for_bumping(&self) -> Option<DpbEntry<T>> {
         let lowest = self
             .pictures()

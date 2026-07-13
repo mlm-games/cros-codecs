@@ -412,6 +412,15 @@ pub struct H265DecoderState<H: DecodedHandle, P> {
     current_pic: Option<CurrentPicState<H, P>>,
 
     pending_pps: Vec<Nalu<'static>>,
+
+    /// Timestamp for the first processed input packet.
+    pts_base: Option<u64>,
+
+    /// Estimated frame duration in microseconds, derived from input PTS deltas.
+    pts_frame_duration_us: u64,
+
+    /// Previously seen input PTS, for estimating frame duration.
+    prev_input_pts: Option<u64>,
 }
 
 impl<H, P> Default for H265DecoderState<H, P>
@@ -433,6 +442,9 @@ where
             last_independent_slice_header: Default::default(),
             current_pic: Default::default(),
             pending_pps: Default::default(),
+            pts_base: Default::default(),
+            pts_frame_duration_us: 0,
+            prev_input_pts: Default::default(),
         }
     }
 }
@@ -844,8 +856,6 @@ where
             return Err(DecodeError::CheckEvents);
         }
 
-        let mut backend_pic = self.backend.new_picture(timestamp, alloc_cb)?;
-
         let pic = PictureData::new_from_slice(
             slice,
             self.codec.first_picture_in_bitstream,
@@ -876,6 +886,25 @@ where
         }
 
         log::debug!("Decode picture POC {}", pic.pic_order_cnt_val);
+
+        // Compute the display PTS from POC order
+        self.codec.pts_base = self.codec.pts_base.or(Some(timestamp));
+        if self.codec.pts_frame_duration_us == 0 {
+            if let Some(prev) = self.codec.prev_input_pts {
+                if timestamp > prev {
+                    self.codec.pts_frame_duration_us = timestamp - prev;
+                }
+            }
+        }
+        self.codec.prev_input_pts = Some(timestamp);
+
+        let frame_dur = self.codec.pts_frame_duration_us.max(1);
+        let base = self.codec.pts_base.unwrap_or(0);
+        let display_pts = base.saturating_add(
+            (pic.pic_order_cnt_val as u64).saturating_mul(frame_dur),
+        );
+
+        let mut backend_pic = self.backend.new_picture(display_pts, alloc_cb)?;
 
         let pps = self
             .codec
