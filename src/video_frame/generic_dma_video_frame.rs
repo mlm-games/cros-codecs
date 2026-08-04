@@ -359,6 +359,23 @@ impl Clone for GenericDmaVideoFrame {
 }
 
 impl GenericDmaVideoFrame {
+    pub fn dma_handles(&self) -> &[File] {
+        &self.dma_handles
+    }
+
+    pub fn layout(&self) -> &FrameLayout {
+        &self.layout
+    }
+
+    pub fn export_dmabuf(&self) -> Result<(Vec<File>, FrameLayout), String> {
+        let fds = self
+            .dma_handles
+            .iter()
+            .map(|f| dup(f).map(File::from).map_err(|e| format!("dup dmabuf: {e}")))
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok((fds, self.layout.clone()))
+    }
+
     pub fn new(
         dma_handles: Vec<File>,
         layout: FrameLayout,
