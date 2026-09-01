@@ -6,6 +6,7 @@ use crate::Resolution;
 use crate::codec::h265::parser::Level;
 use crate::codec::h265::parser::Profile;
 use crate::encoder::PredictionStructure;
+use crate::encoder::Tunings;
 
 pub struct H265;
 
@@ -15,6 +16,7 @@ pub struct EncoderConfig {
     pub profile: Profile,
     pub level: Level,
     pub pred_structure: PredictionStructure,
+    pub initial_tunings: Tunings,
 }
 
 impl Default for EncoderConfig {
@@ -25,6 +27,7 @@ impl Default for EncoderConfig {
             profile: Profile::Main,
             level: Level::L4,
             pred_structure: PredictionStructure::LowDelay { limit: 2048 },
+            initial_tunings: Default::default(),
         }
     }
 }

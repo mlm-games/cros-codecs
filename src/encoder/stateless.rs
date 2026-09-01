@@ -18,6 +18,8 @@ use crate::encoder::VideoEncoder;
 pub mod av1;
 #[cfg(feature = "vaapi")]
 pub mod h264;
+#[cfg(all(feature = "vaapi", feature = "h265"))]
+pub mod h265;
 #[cfg(feature = "vaapi")]
 pub(crate) mod predictor;
 #[cfg(feature = "vaapi")]

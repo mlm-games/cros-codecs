@@ -16,15 +16,13 @@ and should be usable anywhere.
 - VAAPI decoder support (using
   [cros-libva](https://github.com/mlm-games/cros-libva)) for H.264, H.265, VP8,
   VP9 and AV1,
-- VAAPI encoder support for H.264, VP9 and AV1,
-- Stateful V4L2 encoder support.
+- VAAPI encoder support for H.264, H.265, VP9 and AV1,
+- Stateful V4L2 encoder support for H.264, H.265, VP8 and VP9,
+- Stateless V4L2 decoder support for H.264, H.265, VP8, VP9 and AV1.
 
 ## Planned features
 
-- Stateful V4L2 decoder support,
-- Stateless V4L2 decoder support,
-- Support for more encoder codecs,
-- C API to be used in non-Rust projects.
+- Stateful V4L2 decoder support.
 
 ## Non-goals
 
