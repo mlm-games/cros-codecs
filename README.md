@@ -1,4 +1,4 @@
-# Cros-codecs
+# Cros-codecs (old readme)
 
 [<img alt="crates.io" src="https://img.shields.io/crates/v/cros-codecs">](https://crates.io/crates/cros-codecs)
 [<img alt="docs.rs" src="https://img.shields.io/docsrs/cros-codecs">](https://docs.rs/cros-codecs/latest/cros_codecs/)
@@ -14,7 +14,7 @@ and should be usable anywhere.
 
 - Simple decoder API,
 - VAAPI decoder support (using
-  [cros-libva](https://github.com/chromeos/cros-libva)) for H.264, H.265, VP8,
+  [cros-libva](https://github.com/mlm-games/cros-libva)) for H.264, H.265, VP8,
   VP9 and AV1,
 - VAAPI encoder support for H.264, VP9 and AV1,
 - Stateful V4L2 encoder support.
