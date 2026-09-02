@@ -9,11 +9,17 @@ use anyhow::Context;
 use libva::BufferType;
 use libva::Display;
 use libva::EncCodedBuffer;
+use libva::EncPictureParameterBufferHEVC;
 use libva::EncSequenceParameterBufferHEVC;
+use libva::EncSliceParameterBufferHEVC;
+use libva::HEVCEncPicFields;
+use libva::HevcEncPicSccFields;
+use libva::HevcEncSliceFields;
 use libva::Picture;
+use libva::PictureHEVC;
 use libva::Surface;
 use libva::SurfaceMemoryDescriptor;
-use libva::VAProfile;
+use libva::VA_INVALID_ID;
 
 use crate::BlockingMode;
 use crate::Fourcc;
@@ -128,6 +134,174 @@ where
             ),
         ))
     }
+
+    fn build_hevc_pic_param(
+        &self,
+        request: &BackendRequest<H, Reconstructed>,
+        coded_buf: &EncCodedBuffer,
+        recon: &Reconstructed,
+    ) -> BufferType {
+        use crate::encoder::stateless::h265::IsReference;
+
+        let pps = &request.pps;
+        let slice = &request.slice;
+
+        let is_idr = request.is_idr;
+        let coding_type = match slice.header.type_ {
+            crate::codec::h265::parser::SliceType::I => 2,
+            crate::codec::h265::parser::SliceType::P => 1,
+            crate::codec::h265::parser::SliceType::B => 0,
+        };
+        let reference_flag = (request.dpb_meta.is_reference != IsReference::No) as u32;
+
+        let pic_fields = HEVCEncPicFields::new(
+            is_idr as u32,
+            coding_type,
+            reference_flag,
+            pps.dependent_slice_segments_enabled_flag as u32,
+            pps.sign_data_hiding_enabled_flag as u32,
+            pps.constrained_intra_pred_flag as u32,
+            pps.transform_skip_enabled_flag as u32,
+            pps.cu_qp_delta_enabled_flag as u32,
+            pps.weighted_pred_flag as u32,
+            pps.weighted_bipred_flag as u32,
+            pps.transquant_bypass_enabled_flag as u32,
+            pps.tiles_enabled_flag as u32,
+            pps.entropy_coding_sync_enabled_flag as u32,
+            pps.loop_filter_across_tiles_enabled_flag as u32,
+            pps.loop_filter_across_slices_enabled_flag as u32,
+            pps.scaling_list_data_present_flag as u32,
+            0,
+            0,
+            0,
+        );
+        let scc_fields = HevcEncPicSccFields::new(pps.scc_extension_flag as u16);
+
+        // Build reference frames array (15 entries)
+        let mut reference_frames: [PictureHEVC; 15] = std::array::from_fn(|_| {
+            PictureHEVC::new(VA_INVALID_ID, 0, 0)
+        });
+        for (i, entry) in request.ref_list_0.iter().enumerate().take(15) {
+            let pic = PictureHEVC::new(entry.recon_pic.surface_id(), entry.meta.poc, 0);
+            reference_frames[i] = pic;
+        }
+
+        let decoded_curr_pic = PictureHEVC::new(recon.surface_id(), request.dpb_meta.poc, 0);
+
+        let column_width_minus1 = {
+            let mut arr = [0u8; 19];
+            for (i, v) in pps.column_width_minus1.iter().enumerate().take(19) {
+                arr[i] = *v as u8;
+            }
+            arr
+        };
+        let row_height_minus1 = {
+            let mut arr = [0u8; 21];
+            for (i, v) in pps.row_height_minus1.iter().enumerate().take(21) {
+                arr[i] = *v as u8;
+            }
+            arr
+        };
+
+        let pic_param = EncPictureParameterBufferHEVC::new(
+            decoded_curr_pic,
+            reference_frames,
+            coded_buf.id(),
+            0, // collocated_ref_pic_index
+            0, // last_picture
+            (pps.init_qp_minus26 + 26) as u8,
+            pps.diff_cu_qp_delta_depth,
+            pps.cb_qp_offset,
+            pps.cr_qp_offset,
+            pps.num_tile_columns_minus1,
+            pps.num_tile_rows_minus1,
+            column_width_minus1,
+            row_height_minus1,
+            pps.log2_parallel_merge_level_minus2,
+            64, // ctu_max_bitsize_allowed (default)
+            pps.num_ref_idx_l0_default_active_minus1,
+            pps.num_ref_idx_l1_default_active_minus1,
+            pps.pic_parameter_set_id,
+            slice.nalu.header.type_ as u8,
+            &pic_fields,
+            0, // hierarchical_level_plus1
+            0, // va_byte_reserved
+            &scc_fields,
+        );
+        BufferType::EncPictureParameter(libva::EncPictureParameter::HEVC(pic_param))
+    }
+
+    fn build_hevc_slice_param(
+        &self,
+        request: &BackendRequest<H, Reconstructed>,
+    ) -> BufferType {
+        let slice = &request.slice;
+
+        let mut ref_pic_list0: [PictureHEVC; 15] = std::array::from_fn(|_| PictureHEVC::new(VA_INVALID_ID, 0, 0));
+        let mut ref_pic_list1: [PictureHEVC; 15] = std::array::from_fn(|_| PictureHEVC::new(VA_INVALID_ID, 0, 0));
+
+        for (i, entry) in request.ref_list_0.iter().enumerate().take(15) {
+            ref_pic_list0[i] = PictureHEVC::new(entry.recon_pic.surface_id(), entry.meta.poc, 0);
+        }
+        for (i, entry) in request.ref_list_1.iter().enumerate().take(15) {
+            ref_pic_list1[i] = PictureHEVC::new(entry.recon_pic.surface_id(), entry.meta.poc, 0);
+        }
+
+        let long_slice_flags = HevcEncSliceFields::new(
+            1, // last_slice_of_pic
+            slice.header.dependent_slice_segment_flag as u32,
+            slice.header.colour_plane_id as u32,
+            slice.header.temporal_mvp_enabled_flag as u32,
+            slice.header.sao_luma_flag as u32,
+            slice.header.sao_chroma_flag as u32,
+            slice.header.num_ref_idx_active_override_flag as u32,
+            slice.header.mvd_l1_zero_flag as u32,
+            slice.header.cabac_init_flag as u32,
+            slice.header.deblocking_filter_disabled_flag as u32,
+            slice.header.loop_filter_across_slices_enabled_flag as u32,
+            slice.header.collocated_from_l0_flag as u32,
+        );
+
+        let sps = &request.sps;
+        let pic_width_in_ctbs = ((sps.pic_width_in_luma_samples as u32 + 63) / 64) as u32;
+        let pic_height_in_ctbs = ((sps.pic_height_in_luma_samples as u32 + 63) / 64) as u32;
+        let num_ctu_in_slice = pic_width_in_ctbs * pic_height_in_ctbs;
+
+        let slice_param = EncSliceParameterBufferHEVC::new(
+            slice.header.segment_address,
+            num_ctu_in_slice,
+            slice.header.type_ as u8,
+            pps_pic_parameter_set_id(request),
+            slice.header.num_ref_idx_l0_active_minus1,
+            slice.header.num_ref_idx_l1_active_minus1,
+            ref_pic_list0,
+            ref_pic_list1,
+            0, // luma_log2_weight_denom
+            0, // delta_chroma_log2_weight_denom
+            [0; 15],
+            [0; 15],
+            [[0; 2]; 15],
+            [[0; 2]; 15],
+            [0; 15],
+            [0; 15],
+            [[0; 2]; 15],
+            [[0; 2]; 15],
+            slice.header.five_minus_max_num_merge_cand,
+            slice.header.qp_delta,
+            slice.header.cb_qp_offset,
+            slice.header.cr_qp_offset,
+            slice.header.beta_offset_div2,
+            slice.header.tc_offset_div2,
+            &long_slice_flags,
+            0,
+            0,
+        );
+        BufferType::EncSliceParameter(libva::EncSliceParameter::HEVC(slice_param))
+    }
+}
+
+fn pps_pic_parameter_set_id<H, R>(request: &BackendRequest<H, R>) -> u8 {
+    request.pps.pic_parameter_set_id
 }
 
 impl<M, H> StatelessH265EncoderBackend for VaapiBackend<M, H>
@@ -164,6 +338,9 @@ where
             request.ip_period,
         );
 
+        let pic_param = self.build_hevc_pic_param(&request, &coded_buf, &recon);
+        let slice_param = self.build_hevc_slice_param(&request);
+
         let mut picture = Picture::new(
             request.dpb_meta.poc as u64,
             Rc::clone(self.context()),
@@ -171,11 +348,8 @@ where
         );
 
         picture.add_buffer(self.context().create_buffer(seq_param)?);
-
-        // For now, only sequence header; picture/slice params would be added for full impl.
-        // This stub allows compilation and demonstrates VAAPI H.265 path.
-        // TODO: Add HEVC picture and slice params (EncPictureParameterBufferHEVC, EncSliceParameterBufferHEVC)
-        // when full predictor is implemented.
+        picture.add_buffer(self.context().create_buffer(pic_param)?);
+        picture.add_buffer(self.context().create_buffer(slice_param)?);
 
         use crate::backend::vaapi::encoder::tunings_to_libva_rc;
         let rc_param = tunings_to_libva_rc::<1, 51>(&request.tunings)?;
