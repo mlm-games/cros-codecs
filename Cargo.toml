@@ -1,6 +1,6 @@
 [package]
 name = "nuxodecs"
-version = "0.1.0"
+version = "0.1.1"
 license = "BSD-3-Clause"
 description = "Hardware-accelerated codecs for Linux"
 repository = "https://github.com/mlm-games/cros-codecs"
