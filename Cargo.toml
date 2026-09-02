@@ -1,11 +1,16 @@
 [package]
-name = "cros-codecs"
+name = "nuxodecs"
 version = "0.0.10"
 license = "BSD-3-Clause"
 description = "Hardware-accelerated codecs for Linux"
-repository = "https://github.com/chromeos/cros-codecs"
-authors = ["The ChromiumOS Authors"]
+repository = "https://github.com/mlm-games/cros-codecs"
+authors = ["mlm-games"] # Original: ["The ChromiumOS Authors"]
 edition = "2024"
+rust-version = "1.88"
+keywords = ["vaapi", "v4l2", "video", "hardware", "codecs", "drm"]
+categories = ["multimedia", "api-bindings"]
+homepage = "https://github.com/mlm-games/cros-codecs"
+readme = "README.md"
 
 [features]
 default = []

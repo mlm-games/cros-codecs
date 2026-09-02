@@ -210,28 +210,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "cros-codecs"
-version = "0.0.10"
-dependencies = [
- "anyhow",
- "argh",
- "byteorder",
- "crc32fast",
- "drm 0.15.0",
- "drm-fourcc",
- "env_logger",
- "gbm",
- "gbm-sys",
- "libva",
- "log",
- "nix 0.31.3",
- "serde_json",
- "thiserror 2.0.20",
- "v4l2r",
- "zerocopy",
-]
-
-[[package]]
 name = "defmt"
 version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -561,6 +539,28 @@ checksum = "d273983c5a657a70a3e8f2a01329822f3b8c8172b73826411a55751e404a0a4a"
 dependencies = [
  "memchr",
  "minimal-lexical",
+]
+
+[[package]]
+name = "nuxodecs"
+version = "0.0.10"
+dependencies = [
+ "anyhow",
+ "argh",
+ "byteorder",
+ "crc32fast",
+ "drm 0.15.0",
+ "drm-fourcc",
+ "env_logger",
+ "gbm",
+ "gbm-sys",
+ "libva",
+ "log",
+ "nix 0.31.3",
+ "serde_json",
+ "thiserror 2.0.20",
+ "v4l2r",
+ "zerocopy",
 ]
 
 [[package]]

@@ -392,8 +392,8 @@ pub struct FrameLayout {
 /// # Example
 ///
 ///
-/// use cros_codecs::multiple_desc_type;
-/// use cros_codecs::utils::DmabufFrame;
+/// use nuxodecs::multiple_desc_type;
+/// use nuxodecs::utils::DmabufFrame;
 ///
 /// /// Frames' memory can be provided either by the backend, or via PRIME DMABUF handles.
 /// multiple_desc_type! {

@@ -1,7 +1,11 @@
-# Cros-codecs (old readme)
+# nuxodecs (fork of cros-codecs)
 
-[<img alt="crates.io" src="https://img.shields.io/crates/v/cros-codecs">](https://crates.io/crates/cros-codecs)
-[<img alt="docs.rs" src="https://img.shields.io/docsrs/cros-codecs">](https://docs.rs/cros-codecs/latest/cros_codecs/)
+[<img alt="crates.io" src="https://img.shields.io/crates/v/nuxodecs">](https://crates.io/crates/nuxodecs)
+[<img alt="docs.rs" src="https://img.shields.io/docsrs/nuxodecs">](https://docs.rs/nuxodecs/latest/nuxodecs/)
+
+> Published as [`nuxodecs`](https://crates.io/crates/nuxodecs), fork of [`cros-codecs`](https://github.com/chromeos/cros-codecs) for my hw-codecs crate.
+
+Original readme below:
 
 A lightweight, simple, low-dependency, and hopefully safe crate for
 hardware-accelerated video decoding and encoding on Linux.
