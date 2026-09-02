@@ -31,7 +31,7 @@ fuzzing = []
 [dependencies]
 anyhow = { version = "1.0.75", optional = true }
 byteorder = { version = "1.4.3", optional = true }
-libva = { git = "https://github.com/mlm-games/cros-libva.git", package = "cros-libva", branch = "main", optional = true }
+libva = { version = "0.1", optional = true }
 v4l2r = { version = "0.0.8", package = "v4l2r", optional = true }
 log = { version = "0", features = ["release_max_level_debug"] }
 thiserror = { version = "2", optional = true }
