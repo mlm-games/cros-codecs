@@ -52,9 +52,60 @@ impl<Picture, Reference> LowDelayH265<Picture, Reference> {
     }
 
     fn new_sequence(&mut self) {
-        // In real hardware path, SPS/PPS would be generated via synthesizer.
-        self.delegate.sps = Some(Rc::new(unsafe { std::mem::zeroed() }));
-        self.delegate.pps = Some(Rc::new(unsafe { std::mem::zeroed() }));
+        // TODO: generate real SPS/PPS via H265 synthesizer (not yet available).
+        // Use safe defaults instead of unsafe zeroed to avoid UB.
+        let sps = Rc::new(Sps::default());
+        // Minimal valid PPS referencing the SPS
+        let pps = Rc::new(Pps {
+            pic_parameter_set_id: 0,
+            seq_parameter_set_id: sps.seq_parameter_set_id,
+            dependent_slice_segments_enabled_flag: false,
+            output_flag_present_flag: false,
+            num_extra_slice_header_bits: 0,
+            sign_data_hiding_enabled_flag: false,
+            cabac_init_present_flag: false,
+            num_ref_idx_l0_default_active_minus1: 0,
+            num_ref_idx_l1_default_active_minus1: 0,
+            init_qp_minus26: 0,
+            constrained_intra_pred_flag: false,
+            transform_skip_enabled_flag: false,
+            cu_qp_delta_enabled_flag: false,
+            diff_cu_qp_delta_depth: 0,
+            cb_qp_offset: 0,
+            cr_qp_offset: 0,
+            slice_chroma_qp_offsets_present_flag: false,
+            weighted_pred_flag: false,
+            weighted_bipred_flag: false,
+            transquant_bypass_enabled_flag: false,
+            tiles_enabled_flag: false,
+            entropy_coding_sync_enabled_flag: false,
+            num_tile_columns_minus1: 0,
+            num_tile_rows_minus1: 0,
+            uniform_spacing_flag: true,
+            column_width_minus1: [0; 19],
+            row_height_minus1: [0; 21],
+            loop_filter_across_tiles_enabled_flag: false,
+            loop_filter_across_slices_enabled_flag: false,
+            deblocking_filter_control_present_flag: false,
+            deblocking_filter_override_enabled_flag: false,
+            deblocking_filter_disabled_flag: false,
+            beta_offset_div2: 0,
+            tc_offset_div2: 0,
+            scaling_list_data_present_flag: false,
+            scaling_list: Default::default(),
+            lists_modification_present_flag: false,
+            log2_parallel_merge_level_minus2: 0,
+            slice_segment_header_extension_present_flag: false,
+            extension_present_flag: false,
+            range_extension_flag: false,
+            range_extension: Default::default(),
+            scc_extension_flag: false,
+            scc_extension: Default::default(),
+            qp_bd_offset_y: 0,
+            sps: Rc::clone(&sps),
+        });
+        self.delegate.sps = Some(sps);
+        self.delegate.pps = Some(pps);
         self.delegate.update_param_sets = true;
     }
 }
@@ -80,8 +131,16 @@ impl<Picture, Reference>
             is_reference: IsReference::ShortTerm,
         };
 
-        // Dummy slice, VAAPI backend will fill actual slice params.
-        let slice = unsafe { std::mem::zeroed() };
+        // Dummy slice - safe empty slice (VAAPI backend ignores it for now)
+        let slice = crate::codec::h265::parser::Slice {
+            header: crate::codec::h265::parser::SliceHeader::default(),
+            nalu: crate::codec::h264::nalu::Nalu {
+                header: crate::codec::h265::parser::NaluHeader::default(),
+                data: std::borrow::Cow::Borrowed(&[]),
+                size: 0,
+                offset: 0,
+            },
+        };
 
         let request = BackendRequest {
             sps,
@@ -118,7 +177,15 @@ impl<Picture, Reference>
             is_reference: IsReference::ShortTerm,
         };
 
-        let slice = unsafe { std::mem::zeroed() };
+        let slice = crate::codec::h265::parser::Slice {
+            header: crate::codec::h265::parser::SliceHeader::default(),
+            nalu: crate::codec::h264::nalu::Nalu {
+                header: crate::codec::h265::parser::NaluHeader::default(),
+                data: std::borrow::Cow::Borrowed(&[]),
+                size: 0,
+                offset: 0,
+            },
+        };
 
         let request = BackendRequest {
             sps,
@@ -135,7 +202,13 @@ impl<Picture, Reference>
             tunings: self.tunings.clone(),
             coded_output: Vec::new(),
         };
-        self.references.clear();
+        // Keep only last reference for low-delay (do not clear all, limit DPB)
+        // Previously cleared all refs, losing reference for next P-frame.
+        // Keep at most 1 reference (matching H264 predictor's single ref).
+        if self.references.len() > 1 {
+            let keep = self.references.len() - 1;
+            self.references.drain(0..keep);
+        }
         Ok(request)
     }
 

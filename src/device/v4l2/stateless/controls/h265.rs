@@ -63,9 +63,34 @@ impl v4l2r::controls::ExtControlTrait for HevcStartCode {
 
 impl From<&Sps> for v4l2_ctrl_hevc_sps {
     fn from(sps: &Sps) -> Self {
-        // Minimal but plausible mapping; flags zeroed for now.
-        // Full spec mapping would include sps flags (separate colour plane etc.)
-        // For correctness on real hardware, all fields should be filled per spec.
+        let mut flags: u64 = 0;
+        if sps.separate_colour_plane_flag {
+            flags |= u64::from(v4l2r::bindings::V4L2_HEVC_SPS_FLAG_SEPARATE_COLOUR_PLANE);
+        }
+        if sps.scaling_list_enabled_flag {
+            flags |= u64::from(v4l2r::bindings::V4L2_HEVC_SPS_FLAG_SCALING_LIST_ENABLED);
+        }
+        if sps.amp_enabled_flag {
+            flags |= u64::from(v4l2r::bindings::V4L2_HEVC_SPS_FLAG_AMP_ENABLED);
+        }
+        if sps.sample_adaptive_offset_enabled_flag {
+            flags |= u64::from(v4l2r::bindings::V4L2_HEVC_SPS_FLAG_SAMPLE_ADAPTIVE_OFFSET);
+        }
+        if sps.pcm_enabled_flag {
+            flags |= u64::from(v4l2r::bindings::V4L2_HEVC_SPS_FLAG_PCM_ENABLED);
+        }
+        if sps.pcm_loop_filter_disabled_flag {
+            flags |= u64::from(v4l2r::bindings::V4L2_HEVC_SPS_FLAG_PCM_LOOP_FILTER_DISABLED);
+        }
+        if sps.long_term_ref_pics_present_flag {
+            flags |= u64::from(v4l2r::bindings::V4L2_HEVC_SPS_FLAG_LONG_TERM_REF_PICS_PRESENT);
+        }
+        if sps.temporal_mvp_enabled_flag {
+            flags |= u64::from(v4l2r::bindings::V4L2_HEVC_SPS_FLAG_SPS_TEMPORAL_MVP_ENABLED);
+        }
+        if sps.strong_intra_smoothing_enabled_flag {
+            flags |= u64::from(v4l2r::bindings::V4L2_HEVC_SPS_FLAG_STRONG_INTRA_SMOOTHING_ENABLED);
+        }
         Self {
             video_parameter_set_id: sps.video_parameter_set_id,
             seq_parameter_set_id: sps.seq_parameter_set_id,
@@ -95,7 +120,7 @@ impl From<&Sps> for v4l2_ctrl_hevc_sps {
             num_long_term_ref_pics_sps: sps.num_long_term_ref_pics_sps as u8,
             chroma_format_idc: sps.chroma_format_idc,
             sps_max_sub_layers_minus1: sps.max_sub_layers_minus1,
-            flags: 0,
+            flags,
             ..Default::default()
         }
     }
@@ -105,64 +130,67 @@ impl From<&Pps> for v4l2_ctrl_hevc_pps {
     fn from(pps: &Pps) -> Self {
         let mut flags: u64 = 0;
         if pps.dependent_slice_segments_enabled_flag {
-            flags |= 1 << 0;
+            flags |= u64::from(v4l2r::bindings::V4L2_HEVC_PPS_FLAG_DEPENDENT_SLICE_SEGMENT_ENABLED);
         }
         if pps.output_flag_present_flag {
-            flags |= 1 << 1;
+            flags |= u64::from(v4l2r::bindings::V4L2_HEVC_PPS_FLAG_OUTPUT_FLAG_PRESENT);
         }
         if pps.sign_data_hiding_enabled_flag {
-            flags |= 1 << 2;
+            flags |= u64::from(v4l2r::bindings::V4L2_HEVC_PPS_FLAG_SIGN_DATA_HIDING_ENABLED);
         }
         if pps.cabac_init_present_flag {
-            flags |= 1 << 3;
+            flags |= u64::from(v4l2r::bindings::V4L2_HEVC_PPS_FLAG_CABAC_INIT_PRESENT);
         }
         if pps.constrained_intra_pred_flag {
-            flags |= 1 << 4;
+            flags |= u64::from(v4l2r::bindings::V4L2_HEVC_PPS_FLAG_CONSTRAINED_INTRA_PRED);
         }
         if pps.transform_skip_enabled_flag {
-            flags |= 1 << 5;
+            flags |= u64::from(v4l2r::bindings::V4L2_HEVC_PPS_FLAG_TRANSFORM_SKIP_ENABLED);
         }
         if pps.cu_qp_delta_enabled_flag {
-            flags |= 1 << 6;
+            flags |= u64::from(v4l2r::bindings::V4L2_HEVC_PPS_FLAG_CU_QP_DELTA_ENABLED);
         }
         if pps.slice_chroma_qp_offsets_present_flag {
-            flags |= 1 << 7;
+            flags |= u64::from(v4l2r::bindings::V4L2_HEVC_PPS_FLAG_PPS_SLICE_CHROMA_QP_OFFSETS_PRESENT);
         }
         if pps.weighted_pred_flag {
-            flags |= 1 << 8;
+            flags |= u64::from(v4l2r::bindings::V4L2_HEVC_PPS_FLAG_WEIGHTED_PRED);
         }
         if pps.weighted_bipred_flag {
-            flags |= 1 << 9;
+            flags |= u64::from(v4l2r::bindings::V4L2_HEVC_PPS_FLAG_WEIGHTED_BIPRED);
         }
         if pps.transquant_bypass_enabled_flag {
-            flags |= 1 << 10;
+            flags |= u64::from(v4l2r::bindings::V4L2_HEVC_PPS_FLAG_TRANSQUANT_BYPASS_ENABLED);
         }
         if pps.tiles_enabled_flag {
-            flags |= 1 << 11;
+            flags |= u64::from(v4l2r::bindings::V4L2_HEVC_PPS_FLAG_TILES_ENABLED);
         }
         if pps.entropy_coding_sync_enabled_flag {
-            flags |= 1 << 12;
+            flags |= u64::from(v4l2r::bindings::V4L2_HEVC_PPS_FLAG_ENTROPY_CODING_SYNC_ENABLED);
         }
         if pps.loop_filter_across_tiles_enabled_flag {
-            flags |= 1 << 13;
+            flags |= u64::from(v4l2r::bindings::V4L2_HEVC_PPS_FLAG_LOOP_FILTER_ACROSS_TILES_ENABLED);
         }
         if pps.loop_filter_across_slices_enabled_flag {
-            flags |= 1 << 14;
+            flags |= u64::from(v4l2r::bindings::V4L2_HEVC_PPS_FLAG_PPS_LOOP_FILTER_ACROSS_SLICES_ENABLED);
         }
         if pps.deblocking_filter_override_enabled_flag {
-            flags |= 1 << 15;
+            flags |= u64::from(v4l2r::bindings::V4L2_HEVC_PPS_FLAG_DEBLOCKING_FILTER_OVERRIDE_ENABLED);
         }
         if pps.deblocking_filter_disabled_flag {
-            flags |= 1 << 16;
+            flags |= u64::from(v4l2r::bindings::V4L2_HEVC_PPS_FLAG_PPS_DISABLE_DEBLOCKING_FILTER);
         }
         if pps.lists_modification_present_flag {
-            flags |= 1 << 17;
+            flags |= u64::from(v4l2r::bindings::V4L2_HEVC_PPS_FLAG_LISTS_MODIFICATION_PRESENT);
         }
         if pps.slice_segment_header_extension_present_flag {
-            flags |= 1 << 18;
+            flags |= u64::from(v4l2r::bindings::V4L2_HEVC_PPS_FLAG_SLICE_SEGMENT_HEADER_EXTENSION_PRESENT);
         }
         if pps.deblocking_filter_control_present_flag {
-            flags |= 1 << 19;
+            flags |= u64::from(v4l2r::bindings::V4L2_HEVC_PPS_FLAG_DEBLOCKING_FILTER_CONTROL_PRESENT);
+        }
+        if pps.uniform_spacing_flag {
+            flags |= u64::from(v4l2r::bindings::V4L2_HEVC_PPS_FLAG_UNIFORM_SPACING);
         }
 
         Self {
@@ -208,13 +236,14 @@ impl From<&V4l2HevcDpbEntry> for v4l2_hevc_dpb_entry {
     fn from(entry: &V4l2HevcDpbEntry) -> Self {
         let pic = entry.pic.borrow();
         let flags = match pic.reference() {
-            Reference::LongTerm => 0x01, // V4L2_HEVC_DPB_ENTRY_LONG_TERM_REFERENCE
+            Reference::LongTerm => v4l2r::bindings::V4L2_HEVC_DPB_ENTRY_LONG_TERM_REFERENCE as u8,
             Reference::ShortTerm => 0,
             Reference::None => 0,
         };
-        // field_pic is 0 for frame
+        // field_pic is 0 for progressive frame
         Self {
-            timestamp: entry.timestamp * 1000, // us -> ns
+            // timestamp is already ns from V4L2Device::alloc_request
+            timestamp: entry.timestamp,
             flags,
             field_pic: 0,
             pic_order_cnt_val: pic.pic_order_cnt_val,
@@ -251,10 +280,11 @@ impl V4l2CtrlHevcDecodeParams {
         self
     }
 
-    pub fn set_short_term_sets(&mut self, _slice: &Slice) -> &mut Self {
-        // Simplified: sizes are derived from SPS; actual RPS parsing would need full SPS ext.
-        self.handle.short_term_ref_pic_set_size = 0;
-        self.handle.long_term_ref_pic_set_size = 0;
+    pub fn set_short_term_sets(&mut self, slice: &Slice) -> &mut Self {
+        // Use actual sizes from slice header (spec-compliant, avoids HW stutter)
+        self.handle.short_term_ref_pic_set_size = slice.header.st_rps_bits as u16;
+        self.handle.long_term_ref_pic_set_size =
+            (u16::from(slice.header.num_long_term_sps) + u16::from(slice.header.num_long_term_pics)) * 32;
         self
     }
 }

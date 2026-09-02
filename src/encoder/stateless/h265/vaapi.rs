@@ -143,15 +143,19 @@ where
         let recon = self.new_scratch_picture()?;
 
         let bits_per_second = request.tunings.rate_control.bitrate_target().unwrap_or(0) as u32;
+        // Use actual SPS dimensions and profile/level from SPS, not hardcoded values
         let seq_param = Self::build_hevc_seq_param(
             &EncoderConfig {
                 resolution: crate::Resolution {
                     width: request.sps.pic_width_in_luma_samples as u32,
                     height: request.sps.pic_height_in_luma_samples as u32,
                 },
-                profile: Profile::Main,
-                level: crate::codec::h265::parser::Level::L4,
-                pred_structure: crate::encoder::PredictionStructure::LowDelay { limit: 30 },
+                profile: Profile::try_from(request.sps.profile_tier_level.general_profile_idc)
+                    .unwrap_or(Profile::Main),
+                level: request.sps.profile_tier_level.general_level_idc,
+                pred_structure: crate::encoder::PredictionStructure::LowDelay {
+                    limit: request.intra_period as u16,
+                },
                 initial_tunings: request.tunings.clone(),
             },
             &request.sps,
@@ -197,6 +201,22 @@ where
     }
 }
 
+fn h265_va_profile_and_rc(
+    config: &EncoderConfig,
+) -> EncodeResult<(libva::VAProfile::Type, u32)> {
+    let va_profile = match config.profile {
+        Profile::Main => libva::VAProfile::VAProfileHEVCMain,
+        Profile::Main10 => libva::VAProfile::VAProfileHEVCMain10,
+        _ => return Err(crate::encoder::stateless::StatelessBackendError::UnsupportedProfile.into()),
+    };
+    let bitrate_control = match config.initial_tunings.rate_control {
+        crate::encoder::RateControl::ConstantBitrate(_) => libva::VA_RC_CBR,
+        crate::encoder::RateControl::VariableBitrate { .. } => libva::VA_RC_VBR,
+        crate::encoder::RateControl::ConstantQuality(_) => libva::VA_RC_CQP,
+    };
+    Ok((va_profile, bitrate_control))
+}
+
 impl<V: VideoFrame> StatelessEncoder<V, VaapiBackend<V::MemDescriptor, Surface<V::MemDescriptor>>> {
     pub fn new_vaapi(
         display: Arc<Display>,
@@ -206,21 +226,9 @@ impl<V: VideoFrame> StatelessEncoder<V, VaapiBackend<V::MemDescriptor, Surface<V
         low_power: bool,
         blocking_mode: BlockingMode,
     ) -> EncodeResult<Self> {
-        let va_profile = match config.profile {
-            Profile::Main => VAProfile::VAProfileHEVCMain,
-            Profile::Main10 => VAProfile::VAProfileHEVCMain10,
-            _ => return Err(crate::encoder::stateless::StatelessBackendError::UnsupportedProfile.into()),
-        };
-
-        let bitrate_control = match config.initial_tunings.rate_control {
-            crate::encoder::RateControl::ConstantBitrate(_) => libva::VA_RC_CBR,
-            crate::encoder::RateControl::VariableBitrate { .. } => libva::VA_RC_VBR,
-            crate::encoder::RateControl::ConstantQuality(_) => libva::VA_RC_CQP,
-        };
-
+        let (va_profile, bitrate_control) = h265_va_profile_and_rc(&config)?;
         let backend =
             VaapiBackend::new(display, va_profile, fourcc, coded_size, bitrate_control, low_power)?;
-
         Self::new_h265(backend, config, blocking_mode)
     }
 }
@@ -236,21 +244,9 @@ impl<D: SurfaceMemoryDescriptor, S: std::borrow::Borrow<Surface<D>> + 'static>
         low_power: bool,
         blocking_mode: BlockingMode,
     ) -> EncodeResult<Self> {
-        let va_profile = match config.profile {
-            Profile::Main => VAProfile::VAProfileHEVCMain,
-            Profile::Main10 => VAProfile::VAProfileHEVCMain10,
-            _ => return Err(crate::encoder::stateless::StatelessBackendError::UnsupportedProfile.into()),
-        };
-
-        let bitrate_control = match config.initial_tunings.rate_control {
-            crate::encoder::RateControl::ConstantBitrate(_) => libva::VA_RC_CBR,
-            crate::encoder::RateControl::VariableBitrate { .. } => libva::VA_RC_VBR,
-            crate::encoder::RateControl::ConstantQuality(_) => libva::VA_RC_CQP,
-        };
-
+        let (va_profile, bitrate_control) = h265_va_profile_and_rc(&config)?;
         let backend =
             VaapiBackend::new(display, va_profile, fourcc, coded_size, bitrate_control, low_power)?;
-
         Self::new_h265(backend, config, blocking_mode)
     }
 }

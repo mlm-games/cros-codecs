@@ -57,7 +57,12 @@ impl V4l2StreamInfo for &Sps {
 
     fn visible_rect(&self) -> Rect {
         let rect = self.visible_rectangle();
-        Rect { x: rect.min.x, y: rect.min.y, width: rect.max.x, height: rect.max.y }
+        Rect {
+            x: rect.min.x,
+            y: rect.min.y,
+            width: rect.max.x.saturating_sub(rect.min.x),
+            height: rect.max.y.saturating_sub(rect.min.y),
+        }
     }
 }
 
@@ -67,7 +72,7 @@ impl<V: VideoFrame> StatelessDecoderBackendPicture<H265> for V4l2StatelessDecode
 
 impl<V: VideoFrame> StatelessH265DecoderBackend for V4l2StatelessDecoderBackend<V> {
     fn new_sequence(&mut self, sps: &Sps) -> StatelessBackendResult<()> {
-        self.new_sequence(sps, Fourcc::from(b"S265"))
+        self.new_sequence(sps, Fourcc::from(b"HEVC"))
     }
 
     fn new_picture(
@@ -126,10 +131,13 @@ impl<V: VideoFrame> StatelessH265DecoderBackend for V4l2StatelessDecoderBackend<
         let mut decode_params = V4l2CtrlHevcDecodeParams::new();
         let mut flags: u64 = 0;
         if picture_data.nalu_type.is_irap() {
-            flags |= 0x1; // V4L2_HEVC_DECODE_PARAM_FLAG_IRAP_PIC
+            flags |= u64::from(v4l2r::bindings::V4L2_HEVC_DECODE_PARAM_FLAG_IRAP_PIC);
         }
         if picture_data.nalu_type.is_idr() {
-            flags |= 0x2; // IDR
+            flags |= u64::from(v4l2r::bindings::V4L2_HEVC_DECODE_PARAM_FLAG_IDR_PIC);
+        }
+        if picture_data.no_output_of_prior_pics_flag {
+            flags |= u64::from(v4l2r::bindings::V4L2_HEVC_DECODE_PARAM_FLAG_NO_OUTPUT_OF_PRIOR);
         }
 
         decode_params
@@ -170,12 +178,13 @@ impl<V: VideoFrame> StatelessH265DecoderBackend for V4l2StatelessDecoderBackend<
     ) -> StatelessBackendResult<()> {
         // Build slice params control
         let mut slice_params = v4l2_ctrl_hevc_slice_params::default();
-        slice_params.bit_size = (slice.nalu.size as u32) * 8;
+        // Use checked mul to avoid overflow on large slices
+        slice_params.bit_size = (slice.nalu.size as u32).checked_mul(8).unwrap_or(u32::MAX);
         slice_params.data_byte_offset = 0;
         slice_params.nal_unit_type = slice.nalu.header.type_ as u8;
         slice_params.nuh_temporal_id_plus1 = slice.nalu.header.nuh_temporal_id_plus1;
         slice_params.slice_type = slice.header.type_ as u8;
-        slice_params.slice_pic_order_cnt = 0;
+        slice_params.slice_pic_order_cnt = slice.header.pic_order_cnt_lsb as i32;
         slice_params.num_ref_idx_l0_active_minus1 = slice.header.num_ref_idx_l0_active_minus1;
         slice_params.num_ref_idx_l1_active_minus1 = slice.header.num_ref_idx_l1_active_minus1;
         slice_params.collocated_ref_idx = slice.header.collocated_ref_idx;
@@ -186,16 +195,36 @@ impl<V: VideoFrame> StatelessH265DecoderBackend for V4l2StatelessDecoderBackend<
         slice_params.slice_beta_offset_div2 = slice.header.beta_offset_div2;
         slice_params.slice_tc_offset_div2 = slice.header.tc_offset_div2;
 
-        // Flags - simplified
         let mut flags: u64 = 0;
         if slice.header.sao_luma_flag {
-            flags |= 1 << 0;
+            flags |= u64::from(v4l2r::bindings::V4L2_HEVC_SLICE_PARAMS_FLAG_SLICE_SAO_LUMA);
         }
         if slice.header.sao_chroma_flag {
-            flags |= 1 << 1;
+            flags |= u64::from(v4l2r::bindings::V4L2_HEVC_SLICE_PARAMS_FLAG_SLICE_SAO_CHROMA);
         }
         if slice.header.temporal_mvp_enabled_flag {
-            flags |= 1 << 2;
+            flags |= u64::from(v4l2r::bindings::V4L2_HEVC_SLICE_PARAMS_FLAG_SLICE_TEMPORAL_MVP_ENABLED);
+        }
+        if slice.header.mvd_l1_zero_flag {
+            flags |= u64::from(v4l2r::bindings::V4L2_HEVC_SLICE_PARAMS_FLAG_MVD_L1_ZERO);
+        }
+        if slice.header.cabac_init_flag {
+            flags |= u64::from(v4l2r::bindings::V4L2_HEVC_SLICE_PARAMS_FLAG_CABAC_INIT);
+        }
+        if slice.header.collocated_from_l0_flag {
+            flags |= u64::from(v4l2r::bindings::V4L2_HEVC_SLICE_PARAMS_FLAG_COLLOCATED_FROM_L0);
+        }
+        if slice.header.use_integer_mv_flag {
+            flags |= u64::from(v4l2r::bindings::V4L2_HEVC_SLICE_PARAMS_FLAG_USE_INTEGER_MV);
+        }
+        if slice.header.deblocking_filter_disabled_flag {
+            flags |= u64::from(v4l2r::bindings::V4L2_HEVC_SLICE_PARAMS_FLAG_SLICE_DEBLOCKING_FILTER_DISABLED);
+        }
+        if slice.header.loop_filter_across_slices_enabled_flag {
+            flags |= u64::from(v4l2r::bindings::V4L2_HEVC_SLICE_PARAMS_FLAG_SLICE_LOOP_FILTER_ACROSS_SLICES_ENABLED);
+        }
+        if slice.header.dependent_slice_segment_flag {
+            flags |= u64::from(v4l2r::bindings::V4L2_HEVC_SLICE_PARAMS_FLAG_DEPENDENT_SLICE_SEGMENT);
         }
         slice_params.flags = flags;
 
