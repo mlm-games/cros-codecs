@@ -191,7 +191,7 @@ checksum = "157a8ba7b480713b56f4c09fd13fc3e0a22a5dfab8097ba61cbc5feef950788a"
 dependencies = [
  "glob",
  "libc",
- "libloading",
+ "libloading 0.8.9",
 ]
 
 [[package]]
@@ -217,31 +217,18 @@ dependencies = [
  "argh",
  "byteorder",
  "crc32fast",
- "cros-libva",
  "drm 0.15.0",
  "drm-fourcc",
  "env_logger",
  "gbm",
  "gbm-sys",
+ "libva",
  "log",
  "nix 0.31.3",
  "serde_json",
  "thiserror 2.0.20",
  "v4l2r",
  "zerocopy",
-]
-
-[[package]]
-name = "cros-libva"
-version = "0.0.20"
-source = "git+https://github.com/mlm-games/cros-libva.git?branch=main#4ee59b31f58c3a12304a700669f8f7ec78bd6d77"
-dependencies = [
- "bindgen",
- "bitflags 2.13.1",
- "log",
- "pkg-config",
- "regex",
- "thiserror 2.0.20",
 ]
 
 [[package]]
@@ -479,6 +466,31 @@ checksum = "d7c4b02199fee7c5d21a5ae7d8cfa79a6ef5bb2fc834d6e9058e89c825efdc55"
 dependencies = [
  "cfg-if",
  "windows-link",
+]
+
+[[package]]
+name = "libloading"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "754ca22de805bb5744484a5b151a9e1a8e837d5dc232c2d7d8c2e3492edc8b60"
+dependencies = [
+ "cfg-if",
+ "windows-link",
+]
+
+[[package]]
+name = "libva"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "493a749de39d6db1d1923fa90bc659ca7db2f9ca1481dcc84add045552185516"
+dependencies = [
+ "bindgen",
+ "bitflags 2.13.1",
+ "libloading 0.9.0",
+ "log",
+ "pkg-config",
+ "regex",
+ "thiserror 2.0.20",
 ]
 
 [[package]]
