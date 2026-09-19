@@ -22,6 +22,7 @@ use crate::PlaneLayout;
 use crate::Resolution;
 use crate::utils::align_up;
 use crate::utils::buffer_size_for_area;
+use crate::video_frame::FrameMapError;
 use crate::video_frame::ReadMapping;
 use crate::video_frame::VideoFrame;
 use crate::video_frame::WriteMapping;
@@ -391,12 +392,12 @@ impl VideoFrame for GbmVideoFrame {
         ret
     }
 
-    fn map<'a>(&'a self) -> Result<Box<dyn ReadMapping<'a> + 'a>, String> {
-        Ok(Box::new(self.map_helper(false)?))
+    fn map<'a>(&'a self) -> Result<Box<dyn ReadMapping<'a> + 'a>, FrameMapError> {
+        Ok(Box::new(self.map_helper(false).map_err(FrameMapError::from)?))
     }
 
-    fn map_mut<'a>(&'a mut self) -> Result<Box<dyn WriteMapping<'a> + 'a>, String> {
-        Ok(Box::new(self.map_helper(true)?))
+    fn map_mut<'a>(&'a mut self) -> Result<Box<dyn WriteMapping<'a> + 'a>, FrameMapError> {
+        Ok(Box::new(self.map_helper(true).map_err(FrameMapError::from)?))
     }
 
     #[cfg(feature = "v4l2")]

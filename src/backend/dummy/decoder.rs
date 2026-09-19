@@ -15,6 +15,7 @@ use crate::decoder::StreamInfo;
 use crate::decoder::stateless::StatelessCodec;
 use crate::decoder::stateless::StatelessDecoderBackend;
 use crate::decoder::stateless::StatelessDecoderBackendPicture;
+use crate::video_frame::FrameMapError;
 use crate::video_frame::ReadMapping;
 use crate::video_frame::VideoFrame;
 use crate::video_frame::WriteMapping;
@@ -51,12 +52,12 @@ impl VideoFrame for DummyFrame {
         vec![1, 1]
     }
 
-    fn map<'a>(&'a self) -> Result<Box<dyn ReadMapping<'a> + 'a>, String> {
-        Err("dummy backend does not support mapping".to_string())
+    fn map<'a>(&'a self) -> Result<Box<dyn ReadMapping<'a> + 'a>, FrameMapError> {
+        Err(crate::video_frame::FrameMapError::MapFailed("dummy backend does not support mapping".to_string()))
     }
 
-    fn map_mut<'a>(&'a mut self) -> Result<Box<dyn WriteMapping<'a> + 'a>, String> {
-        Err("dummy backend does not support mapping".to_string())
+    fn map_mut<'a>(&'a mut self) -> Result<Box<dyn WriteMapping<'a> + 'a>, FrameMapError> {
+        Err(crate::video_frame::FrameMapError::MapFailed("dummy backend does not support mapping".to_string()))
     }
 
     #[cfg(feature = "v4l2")]

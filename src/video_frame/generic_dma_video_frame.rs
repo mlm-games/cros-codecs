@@ -19,7 +19,7 @@ use std::sync::atomic::{Ordering, fence};
 
 #[cfg(feature = "vaapi")]
 use crate::DecodedFormat;
-use crate::video_frame::{ReadMapping, VideoFrame, WriteMapping};
+use crate::video_frame::{FrameMapError, ReadMapping, VideoFrame, WriteMapping};
 use crate::{Fourcc, FrameLayout, Resolution};
 
 use drm_fourcc::DrmModifier;
@@ -134,16 +134,12 @@ impl<'a> DmaMapping<'a> {
         lens: Vec<usize>,
         modifier: DrmModifier,
         is_writable: bool,
-    ) -> Result<Self, String> {
+    ) -> Result<Self, FrameMapError> {
         if is_writable && modifier != DrmModifier::Linear {
-            return Err(
-                "Writable mappings currently only supported for linear buffers!".to_string()
-            );
+            return Err(FrameMapError::UnsupportedModifier(modifier.into()));
         }
         if modifier != DrmModifier::Linear && modifier != DrmModifier::I915_y_tiled {
-            return Err(
-                "Only linear and Y tile buffers are currently supported for mapping!".to_string()
-            );
+            return Err(FrameMapError::UnsupportedModifier(modifier.into()));
         }
 
         let borrowed_dma_handles: Vec<BorrowedFd> = dma_handles.iter().map(|x| x.as_fd()).collect();
@@ -177,7 +173,11 @@ impl<'a> DmaMapping<'a> {
                     mmap(
                         None,
                         NonZeroUsize::new(lens[i] + offsets[i])
-                            .ok_or("Attempted to map plane of length 0!")?,
+                            .ok_or_else(|| {
+                                FrameMapError::MapFailed(
+                                    "Attempted to map plane of length 0!".to_string(),
+                                )
+                            })?,
                         if is_writable {
                             ProtFlags::PROT_READ | ProtFlags::PROT_WRITE
                         } else {
@@ -187,13 +187,15 @@ impl<'a> DmaMapping<'a> {
                         borrowed_dma_handles[i].as_fd(),
                         0,
                     )
-                    .map_err(|err| format!("Error mapping plane {err}"))?
+                    .map_err(|err| FrameMapError::MapFailed(format!("Error mapping plane {err}")))?
                     .add(offsets[i])
                 });
             }
         } else {
             let total_size = NonZeroUsize::new(lens.iter().sum::<usize>() + offsets[0])
-                .ok_or("Attempted to map VideoFrame of length 0")?;
+                .ok_or_else(|| {
+                    FrameMapError::MapFailed("Attempted to map VideoFrame of length 0".to_string())
+                })?;
             // SAFETY: This assumes that fd is a valid DMA buffer and that our lens and offsets are
             // correct.
             unsafe {
@@ -209,7 +211,7 @@ impl<'a> DmaMapping<'a> {
                     borrowed_dma_handles[0].as_fd(),
                     0,
                 )
-                .map_err(|err| format!("Error mapping plane {err}"))?;
+                .map_err(|err| FrameMapError::MapFailed(format!("Error mapping plane {err}")))?;
                 for i in 0..offsets.len() {
                     addrs.push(base_addr.add(offsets[i]));
                 }
@@ -406,7 +408,7 @@ impl GenericDmaVideoFrame {
         self.layout.planes.iter().map(|x| x.offset).collect()
     }
 
-    fn map_helper(&self, is_writable: bool) -> Result<DmaMapping, String> {
+    fn map_helper(&self, is_writable: bool) -> Result<DmaMapping, FrameMapError> {
         let lens = self.get_plane_size();
         let pitches = self.get_plane_pitch();
         let offsets = self.get_plane_offset();
@@ -508,11 +510,11 @@ impl VideoFrame for GenericDmaVideoFrame {
         self.layout.planes.iter().map(|x| x.stride).collect()
     }
 
-    fn map<'a>(&'a self) -> Result<Box<dyn ReadMapping<'a> + 'a>, String> {
+    fn map<'a>(&'a self) -> Result<Box<dyn ReadMapping<'a> + 'a>, FrameMapError> {
         Ok(Box::new(self.map_helper(false)?))
     }
 
-    fn map_mut<'a>(&'a mut self) -> Result<Box<dyn WriteMapping<'a> + 'a>, String> {
+    fn map_mut<'a>(&'a mut self) -> Result<Box<dyn WriteMapping<'a> + 'a>, FrameMapError> {
         Ok(Box::new(self.map_helper(true)?))
     }
 

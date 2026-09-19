@@ -11,6 +11,7 @@ use std::sync::Arc;
 use crate::Fourcc;
 use crate::Resolution;
 use crate::utils::align_up;
+use crate::video_frame::FrameMapError;
 use crate::video_frame::ReadMapping;
 use crate::video_frame::VideoFrame;
 use crate::video_frame::WriteMapping;
@@ -202,12 +203,12 @@ impl VideoFrame for V4l2MmapVideoFrame {
         }
     }
 
-    fn map<'a>(&'a self) -> Result<Box<dyn ReadMapping<'a> + 'a>, String> {
-        Ok(Box::new(self.map_helper()?))
+    fn map<'a>(&'a self) -> Result<Box<dyn ReadMapping<'a> + 'a>, FrameMapError> {
+        Ok(Box::new(self.map_helper().map_err(FrameMapError::from)?))
     }
 
-    fn map_mut<'a>(&'a mut self) -> Result<Box<dyn WriteMapping<'a> + 'a>, String> {
-        Ok(Box::new(self.map_helper()?))
+    fn map_mut<'a>(&'a mut self) -> Result<Box<dyn WriteMapping<'a> + 'a>, FrameMapError> {
+        Ok(Box::new(self.map_helper().map_err(FrameMapError::from)?))
     }
 
     #[cfg(feature = "v4l2")]

@@ -10,6 +10,7 @@ use std::sync::Weak;
 use crate::Fourcc;
 use crate::Resolution;
 use crate::decoder::StreamInfo;
+use crate::video_frame::FrameMapError;
 use crate::video_frame::ReadMapping;
 use crate::video_frame::VideoFrame;
 use crate::video_frame::WriteMapping;
@@ -56,11 +57,11 @@ impl<V: VideoFrame> VideoFrame for PooledVideoFrame<V> {
         self.inner.as_ref().unwrap().get_plane_pitch()
     }
 
-    fn map<'a>(&'a self) -> Result<Box<dyn ReadMapping<'a> + 'a>, String> {
-        self.inner.as_ref().unwrap().map()
+    fn map<'a>(&'a self) -> Result<Box<dyn ReadMapping<'a> + 'a>, FrameMapError> {
+        self.inner.as_ref().unwrap().map().map_err(FrameMapError::from)
     }
 
-    fn map_mut<'a>(&'a mut self) -> Result<Box<dyn WriteMapping<'a> + 'a>, String> {
+    fn map_mut<'a>(&'a mut self) -> Result<Box<dyn WriteMapping<'a> + 'a>, FrameMapError> {
         self.inner.as_mut().unwrap().map_mut()
     }
 

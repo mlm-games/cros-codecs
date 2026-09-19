@@ -34,6 +34,37 @@ use v4l2r::ioctl::V4l2Buffer;
 #[cfg(feature = "v4l2")]
 use v4l2r::memory::{BufferHandles, Memory, MemoryType, PlaneHandle, PrimitiveBufferHandles};
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum FrameMapError {
+    UnsupportedModifier(u64),
+    UnsupportedTiling(u64),
+    MapFailed(String),
+}
+
+impl std::fmt::Display for FrameMapError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::UnsupportedModifier(m) => write!(f, "unsupported DRM modifier {m:#x} for CPU mapping"),
+            Self::UnsupportedTiling(m) => write!(f, "unsupported tiling {m:#x} for CPU mapping"),
+            Self::MapFailed(msg) => write!(f, "frame mapping failed: {msg}"),
+        }
+    }
+}
+
+impl std::error::Error for FrameMapError {}
+
+impl From<FrameMapError> for String {
+    fn from(e: FrameMapError) -> String {
+        e.to_string()
+    }
+}
+
+impl From<String> for FrameMapError {
+    fn from(s: String) -> Self {
+        Self::MapFailed(s)
+    }
+}
+
 pub const Y_PLANE: usize = 0;
 pub const UV_PLANE: usize = 1;
 pub const U_PLANE: usize = 1;
@@ -287,9 +318,9 @@ pub trait VideoFrame: Send + Sync + Sized + Debug + 'static {
         Ok(())
     }
 
-    fn map<'a>(&'a self) -> Result<Box<dyn ReadMapping<'a> + 'a>, String>;
+    fn map<'a>(&'a self) -> Result<Box<dyn ReadMapping<'a> + 'a>, FrameMapError>;
 
-    fn map_mut<'a>(&'a mut self) -> Result<Box<dyn WriteMapping<'a> + 'a>, String>;
+    fn map_mut<'a>(&'a mut self) -> Result<Box<dyn WriteMapping<'a> + 'a>, FrameMapError>;
 
     #[cfg(feature = "v4l2")]
     fn fill_v4l2_plane(&self, index: usize, plane: &mut v4l2_plane);
