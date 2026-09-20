@@ -55,9 +55,7 @@ impl VaStreamInfo for &Rc<Sps> {
                 if self.constraint_set0_flag {
                     Ok(libva::VAProfile::VAProfileH264ConstrainedBaseline)
                 } else {
-                    Err(anyhow!(
-                        "Unsupported stream: profile_idc=66, but constraint_set0_flag is unset"
-                    ))
+                    Ok(libva::VAProfile::VAProfileH264Main)
                 }
             }
             Profile::Main => Ok(libva::VAProfile::VAProfileH264Main),

@@ -909,6 +909,15 @@ where
         // Bump the DPB as per C.4.5.3 to cover clauses 1, 4, 5 and 6.
         self.ready_queue.extend(self.codec.bump_as_needed(&pic));
 
+        // All-IDR streams with `no_output_of_prior_pics_flag` (screen
+        // recordings where every access unit is an IDR).
+        if matches!(pic.is_idr, IsIdr::Yes { .. })
+            && pic.ref_pic_marking.no_output_of_prior_pics_flag
+        {
+            self.add_to_ready_queue(pic, handle);
+            return Ok(());
+        }
+
         // C.4.5.1, C.4.5.2
         // If the current decoded picture is the second field of a complementary
         // reference field pair, add to DPB.
@@ -1288,7 +1297,14 @@ where
                 // If more SPS come along we will renegotiate in begin_picture().
                 self.renegotiate_if_needed(&sps)?;
             } else if matches!(self.decoding_state, DecodingState::Reset) {
-                // We can resume decoding since the decoding parameters have not changed.
+                // `Reset` is entered after a FormatChanged event was consumed
+                // (`query_next_event`: `AwaitingFormat` -> `Reset`) as well as
+                // after a flush. In the former case the backend context does not
+                // exist yet, so renegotiate from the just-parsed SPS; in the
+                // latter the parameters are unchanged and decoding can resume.
+                if self.codec.negotiation_info == NegotiationInfo::default() {
+                    self.renegotiate_if_needed(&sps)?;
+                }
                 self.decoding_state = DecodingState::Decoding;
             }
         } else if matches!(self.decoding_state, DecodingState::Reset) {
