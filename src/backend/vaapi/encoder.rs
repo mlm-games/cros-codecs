@@ -174,6 +174,95 @@ where
     _phantom: PhantomData<(M, H)>,
 }
 
+/// Pick the encoder entrypoint from what the driver actually exposes, mirroring
+/// FFmpeg's `vaapi_encode_profile_entrypoint`: the requested entrypoint (LP or
+/// regular slice) first, the other one next. Low-power entrypoints are
+/// Intel-only, while most other drivers only have the regular slice one, so a
+/// requested mode the driver lacks should not turn into a software fallback.
+fn select_entrypoint(
+    display: &Display,
+    va_profile: VAProfile::Type,
+    low_power: bool,
+) -> (VAEntrypoint::Type, bool) {
+    let requested = if low_power { VAEntrypointEncSliceLP } else { VAEntrypointEncSlice };
+    let alternate = if low_power { VAEntrypointEncSlice } else { VAEntrypointEncSliceLP };
+
+    match display.query_config_entrypoints(va_profile) {
+        Ok(entrypoints) => {
+            if entrypoints.contains(&requested) {
+                (requested, false)
+            } else if entrypoints.contains(&alternate) {
+                (alternate, true)
+            } else {
+                (requested, false)
+            }
+        }
+        Err(_) => (requested, false),
+    }
+}
+
+/// Resolve the rate control mode against the driver's reported mask, mirroring
+/// FFmpeg's `vaapi_encode_init_rate_control`. Drivers reject unknown modes at
+/// config creation time, and some do not accept the attribute at all; falling
+/// back to the closest supported mode keeps hardware encoding usable instead
+/// of failing into a software fallback.
+///
+/// Returns `(mode, set_attribute)`.
+fn resolve_rate_control(
+    display: &Display,
+    va_profile: VAProfile::Type,
+    entrypoint: VAEntrypoint::Type,
+    requested: u32,
+) -> StatelessBackendResult<(u32, bool)> {
+    let mut attrs = [libva::VAConfigAttrib {
+        type_: libva::VAConfigAttribType::VAConfigAttribRateControl,
+        value: 0,
+    }];
+    let supported = match display.get_config_attributes(va_profile, entrypoint, &mut attrs) {
+        Ok(()) => attrs[0].value,
+        Err(e) => {
+            // A failed capability query must not cost hardware encoding:
+            // assume the requested mode, as drivers without the query do.
+            log::warn!("VA rate control query failed ({e:?}); using {requested:#x} as requested");
+            return Ok((requested, true));
+        }
+    };
+
+    if supported == libva::VA_ATTRIB_NOT_SUPPORTED {
+        // The driver does not want the attribute set: it assumes its own
+        // default mode.
+        log::debug!("VA driver reports no rate control modes; not setting the attribute");
+        return Ok((requested, false));
+    }
+
+    // CQP is VAAPI's baseline mode. Some drivers (Mesa reports CBR|VBR|ICQ
+    // only) do not advertise it in the attribute but still accept it.
+    if requested == libva::VA_RC_CQP {
+        return Ok((requested, true));
+    }
+
+    if supported & requested != 0 {
+        return Ok((requested, true));
+    }
+
+    let preferred: &[u32] = if requested == libva::VA_RC_CBR {
+        &[libva::VA_RC_CBR, libva::VA_RC_VBR, libva::VA_RC_CQP]
+    } else {
+        &[libva::VA_RC_VBR, libva::VA_RC_CBR, libva::VA_RC_CQP]
+    };
+    let selected = preferred
+        .iter()
+        .find(|mode| supported & **mode != 0)
+        .copied()
+        .unwrap_or(requested);
+    if selected != requested {
+        log::warn!(
+            "VA driver does not support rate control {requested:#x} (supported {supported:#x}), using {selected:#x}"
+        );
+    }
+    Ok((selected, true))
+}
+
 impl<M, H> VaapiBackend<M, H>
 where
     M: SurfaceMemoryDescriptor,
@@ -193,18 +282,51 @@ where
             .ok_or_else(|| StatelessBackendError::UnsupportedFormat)?;
 
         let rt_format = format_map.rt_format;
-        let entrypoint = if low_power { VAEntrypointEncSliceLP } else { VAEntrypointEncSlice };
 
-        let mut config_attrs = vec![
-            libva::VAConfigAttrib {
-                type_: libva::VAConfigAttribType::VAConfigAttribRTFormat,
-                value: rt_format,
-            },
-            libva::VAConfigAttrib {
+        let (entrypoint, entrypoint_fallback) = select_entrypoint(&display, va_profile, low_power);
+        if entrypoint_fallback {
+            log::info!(
+                "requested VA entrypoint ({}) is not available for profile {va_profile}: using {}",
+                if low_power { "EncSliceLP" } else { "EncSlice" },
+                if entrypoint == VAEntrypointEncSliceLP {
+                    "EncSliceLP"
+                } else {
+                    "EncSlice"
+                },
+            );
+        }
+
+        // A driver can refuse the render target format it previously accepted
+        // at config creation: check the attribute first so the failure is
+        // explicit instead of a later opaque VA error.
+        let mut rt_format_attr = [libva::VAConfigAttrib {
+            type_: libva::VAConfigAttribType::VAConfigAttribRTFormat,
+            value: 0,
+        }];
+        if display
+            .get_config_attributes(va_profile, entrypoint, &mut rt_format_attr)
+            .is_ok()
+            && rt_format_attr[0].value != libva::VA_ATTRIB_NOT_SUPPORTED
+            && rt_format_attr[0].value & rt_format == 0
+        {
+            return Err(StatelessBackendError::Other(anyhow!(
+                "VA driver does not support render target format {rt_format:#x} for profile {va_profile} entrypoint {entrypoint}"
+            )));
+        }
+
+        let (rate_control, set_rc_attr) =
+            resolve_rate_control(&display, va_profile, entrypoint, bitrate_control)?;
+
+        let mut config_attrs = vec![libva::VAConfigAttrib {
+            type_: libva::VAConfigAttribType::VAConfigAttribRTFormat,
+            value: rt_format,
+        }];
+        if set_rc_attr {
+            config_attrs.push(libva::VAConfigAttrib {
                 type_: libva::VAConfigAttribType::VAConfigAttribRateControl,
-                value: bitrate_control,
-            },
-        ];
+                value: rate_control,
+            });
+        }
 
         // Query and set packed header support in the config (tells the driver which
         // packed headers we will provide, so it knows not to generate them internally).
