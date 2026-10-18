@@ -50,7 +50,6 @@ use crate::encoder::stateless::vp9::predictor::MAX_Q_IDX;
 use crate::encoder::stateless::vp9::predictor::MIN_Q_IDX;
 use crate::encoder::vp9::EncoderConfig;
 use crate::encoder::vp9::VP9;
-use crate::video_frame::VideoFrame;
 
 impl<M, Handle> StatelessVideoEncoderBackend<VP9> for VaapiBackend<M, Handle>
 where
@@ -257,8 +256,10 @@ where
     }
 }
 
-impl<V: VideoFrame> StatelessEncoder<V, VaapiBackend<V::MemDescriptor, Surface<V::MemDescriptor>>> {
-    pub fn new_vaapi(
+impl<D: SurfaceMemoryDescriptor, S: std::borrow::Borrow<Surface<D>> + 'static>
+    StatelessEncoder<S, VaapiBackend<D, S>>
+{
+    pub fn new_native_vaapi(
         display: Arc<Display>,
         config: EncoderConfig,
         fourcc: Fourcc,
