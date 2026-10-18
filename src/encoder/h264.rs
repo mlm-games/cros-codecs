@@ -10,6 +10,8 @@ use crate::encoder::Tunings;
 
 pub struct H264;
 
+pub use crate::codec::h264::ColorSignal;
+
 #[derive(Clone)]
 pub struct EncoderConfig {
     pub resolution: Resolution,
@@ -18,6 +20,8 @@ pub struct EncoderConfig {
     pub pred_structure: PredictionStructure,
     /// Initial tunings values
     pub initial_tunings: Tunings,
+    /// Colour signalling for the SPS VUI; `None` writes no `video_signal_type`.
+    pub color: Option<ColorSignal>,
 }
 
 impl Default for EncoderConfig {
@@ -29,6 +33,7 @@ impl Default for EncoderConfig {
             level: Level::L4,
             pred_structure: PredictionStructure::LowDelay { limit: 2048 },
             initial_tunings: Default::default(),
+            color: None,
         }
     }
 }

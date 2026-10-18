@@ -620,7 +620,7 @@ impl TryFrom<u8> for Level {
 /// content of a seq_parameter_set_id syntax element found in the picture
 /// parameter set referred to by the pic_parameter_set_id syntax element found
 /// in each slice header.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Sps {
     /// Identifies the sequence parameter set that is referred to by the picture
     /// parameter set
@@ -1107,6 +1107,31 @@ impl SpsBuilder {
         self.0.vui_parameters.vcl_hrd_parameters_present_flag = false;
         self.0.vui_parameters.pic_struct_present_flag = false;
         self.0.vui_parameters.bitstream_restriction_flag = false;
+        self
+    }
+
+    /// Signals the sample range (and no video format) in the VUI.
+    pub fn video_signal_type(mut self, full_range: bool) -> Self {
+        self = self.vui_parameters_present();
+        self.0.vui_parameters.video_signal_type_present_flag = true;
+        self.0.vui_parameters.video_format = 5; // unspecified
+        self.0.vui_parameters.video_full_range_flag = full_range;
+        self
+    }
+
+    /// Signals primaries, transfer and matrix coefficients in the VUI.
+    pub fn colour_description(
+        mut self,
+        colour_primaries: u8,
+        transfer_characteristics: u8,
+        matrix_coefficients: u8,
+    ) -> Self {
+        let full_range = self.0.vui_parameters.video_full_range_flag;
+        self = self.video_signal_type(full_range);
+        self.0.vui_parameters.colour_description_present_flag = true;
+        self.0.vui_parameters.colour_primaries = colour_primaries;
+        self.0.vui_parameters.transfer_characteristics = transfer_characteristics;
+        self.0.vui_parameters.matrix_coefficients = matrix_coefficients;
         self
     }
 

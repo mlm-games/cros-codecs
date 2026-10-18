@@ -99,8 +99,23 @@ impl<Picture, Reference> LowDelayH264<Picture, Reference> {
             .aspect_ratio(1, 1)
             .timing_info(1, self.tunings.framerate * 2, false)
             .max_num_reorder_frames(0) // must be zero to avoid webrtc rewriting Sps
-            .max_dec_frame_buffering(1) // must match max_num_ref_frames to avoid webrtc rewriting Sps
-            .build();
+            .max_dec_frame_buffering(1); // must match max_num_ref_frames to avoid webrtc rewriting Sps
+
+        let sps = match config.color {
+            Some(color) => {
+                let sps = sps.video_signal_type(color.full_range);
+                if color.matrix_coefficients == 2 {
+                    sps
+                } else {
+                    // Primaries and transfer stay unspecified: only the
+                    // matrix is known from the input conversion.
+                    sps.colour_description(2, 2, color.matrix_coefficients)
+                }
+            }
+            None => sps,
+        };
+
+        let sps = sps.build();
 
         let min_qp = self.tunings.min_quality.max(MIN_QP as u32);
         let max_qp = self.tunings.max_quality.min(MAX_QP as u32);
