@@ -278,7 +278,7 @@ impl<V: VideoFrame> StatelessEncoder<V, VaapiBackend<V::MemDescriptor, Surface<V
         };
 
         let backend =
-            VaapiBackend::new(display, va_profile, fourcc, coded_size, bitrate_control, low_power)?;
+            VaapiBackend::new(display, va_profile, fourcc, coded_size, bitrate_control, low_power, false)?;
         Self::new_vp9(backend, config, blocking_mode)
     }
 }
@@ -306,7 +306,7 @@ impl<D: SurfaceMemoryDescriptor, S: std::borrow::Borrow<Surface<D>> + 'static>
         };
 
         let backend =
-            VaapiBackend::new(display, va_profile, fourcc, coded_size, bitrate_control, low_power)?;
+            VaapiBackend::new(display, va_profile, fourcc, coded_size, bitrate_control, low_power, false)?;
         Self::new_vp9(backend, config, blocking_mode)
     }
 }

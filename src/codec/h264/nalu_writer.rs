@@ -48,6 +48,11 @@ impl<W: Write> EmulationPrevention<W> {
     fn has_data_pending(&self) -> bool {
         self.prev_bytes[0].is_some() || self.prev_bytes[1].is_some()
     }
+
+    /// Writes bytes straight to the output, bypassing emulation prevention.
+    fn write_raw(&mut self, bytes: &[u8]) -> std::io::Result<()> {
+        self.out.write_all(bytes)
+    }
 }
 
 impl<W: Write> Write for EmulationPrevention<W> {
@@ -168,6 +173,15 @@ impl<W: Write> NaluWriter<W> {
     /// Returns `true` if ['Self`] hold data that wasn't written to [`std::io::Write`]
     pub fn has_data_pending(&self) -> bool {
         self.0.has_data_pending() || self.0.inner().has_data_pending()
+    }
+
+    /// Writes bytes straight to the output, bypassing both the bit packer and
+    /// emulation prevention. For start codes and multi-byte NAL headers,
+    /// which must reach the stream verbatim.
+    pub fn write_raw(&mut self, bytes: &[u8]) -> NaluWriterResult<()> {
+        self.0.flush()?;
+        self.0.inner_mut().write_raw(bytes)?;
+        Ok(())
     }
 
     /// Writes a H.264 NALU header.

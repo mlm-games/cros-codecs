@@ -5,6 +5,11 @@
 use std::rc::Rc;
 use std::sync::Arc;
 
+use crate::codec::h265::parser::Sps;
+use crate::codec::h265::parser::Vps;
+use crate::codec::h265::synthesizer::write_pps;
+use crate::codec::h265::synthesizer::write_sps;
+use crate::codec::h265::synthesizer::write_vps;
 use anyhow::Context;
 use libva::BufferType;
 use libva::Display;
@@ -61,8 +66,8 @@ where
         ip_period: u32,
     ) -> BufferType {
         use libva::HEVCEncSeqFields;
-        use libva::HevcEncVuiFields;
         use libva::HevcEncSeqSccFields;
+        use libva::HevcEncVuiFields;
 
         let seq_fields = HEVCEncSeqFields::new(
             sps.chroma_format_idc as u32,
@@ -135,6 +140,24 @@ where
         ))
     }
 
+    /// A single-layer VPS matching `sps`: the encoder config carries an SPS
+    /// only, and the driver needs the VPS in front of it.
+    fn vps_for_sps(sps: &Sps) -> Vps {
+        Vps {
+            video_parameter_set_id: sps.video_parameter_set_id,
+            base_layer_internal_flag: true,
+            base_layer_available_flag: true,
+            max_layers_minus1: 0,
+            max_sub_layers_minus1: sps.max_sub_layers_minus1,
+            temporal_id_nesting_flag: true,
+            profile_tier_level: sps.profile_tier_level.clone(),
+            max_dec_pic_buffering_minus1: sps.max_dec_pic_buffering_minus1.map(u32::from),
+            max_num_reorder_pics: sps.max_num_reorder_pics.map(u32::from),
+            max_latency_increase_plus1: sps.max_latency_increase_plus1.map(u32::from),
+            ..Default::default()
+        }
+    }
+
     fn build_hevc_pic_param(
         &self,
         request: &BackendRequest<H, Reconstructed>,
@@ -178,9 +201,8 @@ where
         let scc_fields = HevcEncPicSccFields::new(pps.scc_extension_flag as u16);
 
         // Build reference frames array (15 entries)
-        let mut reference_frames: [PictureHEVC; 15] = std::array::from_fn(|_| {
-            PictureHEVC::new(VA_INVALID_ID, 0, 0)
-        });
+        let mut reference_frames: [PictureHEVC; 15] =
+            std::array::from_fn(|_| PictureHEVC::new(VA_INVALID_ID, 0, 0));
         for (i, entry) in request.ref_list_0.iter().enumerate().take(15) {
             let pic = PictureHEVC::new(entry.recon_pic.surface_id(), entry.meta.poc, 0);
             reference_frames[i] = pic;
@@ -231,14 +253,13 @@ where
         BufferType::EncPictureParameter(libva::EncPictureParameter::HEVC(pic_param))
     }
 
-    fn build_hevc_slice_param(
-        &self,
-        request: &BackendRequest<H, Reconstructed>,
-    ) -> BufferType {
+    fn build_hevc_slice_param(&self, request: &BackendRequest<H, Reconstructed>) -> BufferType {
         let slice = &request.slice;
 
-        let mut ref_pic_list0: [PictureHEVC; 15] = std::array::from_fn(|_| PictureHEVC::new(VA_INVALID_ID, 0, 0));
-        let mut ref_pic_list1: [PictureHEVC; 15] = std::array::from_fn(|_| PictureHEVC::new(VA_INVALID_ID, 0, 0));
+        let mut ref_pic_list0: [PictureHEVC; 15] =
+            std::array::from_fn(|_| PictureHEVC::new(VA_INVALID_ID, 0, 0));
+        let mut ref_pic_list1: [PictureHEVC; 15] =
+            std::array::from_fn(|_| PictureHEVC::new(VA_INVALID_ID, 0, 0));
 
         for (i, entry) in request.ref_list_0.iter().enumerate().take(15) {
             ref_pic_list0[i] = PictureHEVC::new(entry.recon_pic.surface_id(), entry.meta.poc, 0);
@@ -341,11 +362,34 @@ where
         let pic_param = self.build_hevc_pic_param(&request, &coded_buf, &recon);
         let slice_param = self.build_hevc_slice_param(&request);
 
-        let mut picture = Picture::new(
-            request.dpb_meta.poc as u64,
-            Rc::clone(self.context()),
-            request.input,
-        );
+        // Mesa's HEVC encoder emits no parameter sets of its own and ignores
+        // packed header buffers, so the client prefixes them: the coded
+        // output promise appends the driver's slices to `coded_output`.
+        let mut request = request;
+        if request.is_idr {
+            let vps = Self::vps_for_sps(&request.sps);
+            write_vps(
+                &vps,
+                &mut request.coded_output,
+                crate::backend::vaapi::encoder::ENABLE_EMULATION_PREVENTION_PACKED_HEADERS,
+            )
+            .map_err(|e| anyhow::anyhow!("parameter sets: {e}"))?;
+            write_sps(
+                &request.sps,
+                &mut request.coded_output,
+                crate::backend::vaapi::encoder::ENABLE_EMULATION_PREVENTION_PACKED_HEADERS,
+            )
+            .map_err(|e| anyhow::anyhow!("parameter sets: {e}"))?;
+            write_pps(
+                &request.pps,
+                &mut request.coded_output,
+                crate::backend::vaapi::encoder::ENABLE_EMULATION_PREVENTION_PACKED_HEADERS,
+            )
+            .map_err(|e| anyhow::anyhow!("parameter sets: {e}"))?;
+        }
+
+        let mut picture =
+            Picture::new(request.dpb_meta.poc as u64, Rc::clone(self.context()), request.input);
 
         picture.add_buffer(self.context().create_buffer(seq_param)?);
         picture.add_buffer(self.context().create_buffer(pic_param)?);
@@ -375,13 +419,13 @@ where
     }
 }
 
-fn h265_va_profile_and_rc(
-    config: &EncoderConfig,
-) -> EncodeResult<(libva::VAProfile::Type, u32)> {
+fn h265_va_profile_and_rc(config: &EncoderConfig) -> EncodeResult<(libva::VAProfile::Type, u32)> {
     let va_profile = match config.profile {
         Profile::Main => libva::VAProfile::VAProfileHEVCMain,
         Profile::Main10 => libva::VAProfile::VAProfileHEVCMain10,
-        _ => return Err(crate::encoder::stateless::StatelessBackendError::UnsupportedProfile.into()),
+        _ => {
+            return Err(crate::encoder::stateless::StatelessBackendError::UnsupportedProfile.into());
+        }
     };
     let bitrate_control = match config.initial_tunings.rate_control {
         crate::encoder::RateControl::ConstantBitrate(_) => libva::VA_RC_CBR,
@@ -401,8 +445,15 @@ impl<V: VideoFrame> StatelessEncoder<V, VaapiBackend<V::MemDescriptor, Surface<V
         blocking_mode: BlockingMode,
     ) -> EncodeResult<Self> {
         let (va_profile, bitrate_control) = h265_va_profile_and_rc(&config)?;
-        let backend =
-            VaapiBackend::new(display, va_profile, fourcc, coded_size, bitrate_control, low_power)?;
+        let backend = VaapiBackend::new(
+            display,
+            va_profile,
+            fourcc,
+            coded_size,
+            bitrate_control,
+            low_power,
+            false,
+        )?;
         Self::new_h265(backend, config, blocking_mode)
     }
 }
@@ -419,8 +470,15 @@ impl<D: SurfaceMemoryDescriptor, S: std::borrow::Borrow<Surface<D>> + 'static>
         blocking_mode: BlockingMode,
     ) -> EncodeResult<Self> {
         let (va_profile, bitrate_control) = h265_va_profile_and_rc(&config)?;
-        let backend =
-            VaapiBackend::new(display, va_profile, fourcc, coded_size, bitrate_control, low_power)?;
+        let backend = VaapiBackend::new(
+            display,
+            va_profile,
+            fourcc,
+            coded_size,
+            bitrate_control,
+            low_power,
+            false,
+        )?;
         Self::new_h265(backend, config, blocking_mode)
     }
 }

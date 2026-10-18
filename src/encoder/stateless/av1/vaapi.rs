@@ -846,7 +846,7 @@ where
     };
 
     let backend =
-        VaapiBackend::new(display, va_profile, fourcc, coded_size, bitrate_control, low_power)?;
+        VaapiBackend::new(display, va_profile, fourcc, coded_size, bitrate_control, low_power, false)?;
 
     let av1_features = backend.query_av1_enc_features()?;
 

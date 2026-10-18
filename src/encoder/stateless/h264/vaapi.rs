@@ -83,9 +83,6 @@ where
     M: SurfaceMemoryDescriptor,
     H: std::borrow::Borrow<Surface<M>> + 'static,
 {
-    /// Emulation prevention for packed headers (SPS/PPS/Slice)
-    const ENABLE_EMULATION_PREVENTION_PACKED_HEADERS: bool = true;
-
     /// Builds an invalid [`libva::PictureH264`]. This is usually a place
     /// holder to fill staticly sized array.
     fn build_invalid_va_h264_pic_enc() -> libva::PictureH264 {
@@ -364,7 +361,7 @@ where
             BufferType::EncPackedHeaderParameter(EncPackedHeaderParameter::new(
                 EncPackedHeaderType::Slice,
                 length_in_bits as u32,
-                Self::ENABLE_EMULATION_PREVENTION_PACKED_HEADERS,
+                crate::backend::vaapi::encoder::ENABLE_EMULATION_PREVENTION_PACKED_HEADERS,
             ));
         let packed_slice_data = BufferType::EncPackedHeaderData(buffer);
         Ok((packed_slice_param, packed_slice_data))
@@ -380,7 +377,7 @@ where
             REF_IDC,
             sps,
             &mut buffer,
-            Self::ENABLE_EMULATION_PREVENTION_PACKED_HEADERS,
+            crate::backend::vaapi::encoder::ENABLE_EMULATION_PREVENTION_PACKED_HEADERS,
         )?;
 
         let length_in_bits = buffer.len() * 8;
@@ -388,7 +385,7 @@ where
         let packed_sps_param = BufferType::EncPackedHeaderParameter(EncPackedHeaderParameter::new(
             EncPackedHeaderType::Sequence,
             length_in_bits as u32,
-            Self::ENABLE_EMULATION_PREVENTION_PACKED_HEADERS,
+            crate::backend::vaapi::encoder::ENABLE_EMULATION_PREVENTION_PACKED_HEADERS,
         ));
         let packed_sps_data = BufferType::EncPackedHeaderData(buffer);
         Ok((packed_sps_param, packed_sps_data))
@@ -404,7 +401,7 @@ where
             REF_IDC,
             pps,
             &mut buffer,
-            Self::ENABLE_EMULATION_PREVENTION_PACKED_HEADERS,
+            crate::backend::vaapi::encoder::ENABLE_EMULATION_PREVENTION_PACKED_HEADERS,
         )?;
 
         let length_in_bits = buffer.len() * 8;
@@ -412,7 +409,7 @@ where
         let packed_pps_param = BufferType::EncPackedHeaderParameter(EncPackedHeaderParameter::new(
             EncPackedHeaderType::Picture,
             length_in_bits as u32,
-            Self::ENABLE_EMULATION_PREVENTION_PACKED_HEADERS,
+            crate::backend::vaapi::encoder::ENABLE_EMULATION_PREVENTION_PACKED_HEADERS,
         ));
         let packed_pps_data = BufferType::EncPackedHeaderData(buffer);
         Ok((packed_pps_param, packed_pps_data))
@@ -428,7 +425,7 @@ where
             request.is_idr,
             request.dpb_meta.is_reference,
             &mut buffer,
-            Self::ENABLE_EMULATION_PREVENTION_PACKED_HEADERS,
+            crate::backend::vaapi::encoder::ENABLE_EMULATION_PREVENTION_PACKED_HEADERS,
         )?;
 
         let length_in_bits = buffer.len() * 8 - num_trailing_bits as usize;
@@ -629,7 +626,7 @@ impl<V: VideoFrame> StatelessEncoder<V, VaapiBackend<V::MemDescriptor, Surface<V
         };
 
         let backend =
-            VaapiBackend::new(display, va_profile, fourcc, coded_size, bitrate_control, low_power)?;
+            VaapiBackend::new(display, va_profile, fourcc, coded_size, bitrate_control, low_power, true)?;
 
         Self::new_h264(backend, config, blocking_mode)
     }
@@ -660,7 +657,7 @@ impl<D: SurfaceMemoryDescriptor, S: std::borrow::Borrow<Surface<D>> + 'static>
         };
 
         let backend =
-            VaapiBackend::new(display, va_profile, fourcc, coded_size, bitrate_control, low_power)?;
+            VaapiBackend::new(display, va_profile, fourcc, coded_size, bitrate_control, low_power, true)?;
 
         Self::new_h264(backend, config, blocking_mode)
     }

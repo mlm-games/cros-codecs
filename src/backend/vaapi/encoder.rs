@@ -155,6 +155,9 @@ impl Reconstructed {
     }
 }
 
+/// Packed headers carry emulation-prevention bytes (`has_emulation_bytes`).
+pub(crate) const ENABLE_EMULATION_PREVENTION_PACKED_HEADERS: bool = true;
+
 pub struct VaapiBackend<M, H>
 where
     M: SurfaceMemoryDescriptor,
@@ -250,11 +253,8 @@ fn resolve_rate_control(
     } else {
         &[libva::VA_RC_VBR, libva::VA_RC_CBR, libva::VA_RC_CQP]
     };
-    let selected = preferred
-        .iter()
-        .find(|mode| supported & **mode != 0)
-        .copied()
-        .unwrap_or(requested);
+    let selected =
+        preferred.iter().find(|mode| supported & **mode != 0).copied().unwrap_or(requested);
     if selected != requested {
         log::warn!(
             "VA driver does not support rate control {requested:#x} (supported {supported:#x}), using {selected:#x}"
@@ -268,6 +268,10 @@ where
     M: SurfaceMemoryDescriptor,
     H: std::borrow::Borrow<Surface<M>>,
 {
+    /// `client_packed_headers` tells the driver that the client supplies
+    /// packed SPS/PPS/slice headers (H.264 does); codecs whose client packs
+    /// nothing (H.265, VP9, AV1) leave it off so the driver writes the
+    /// headers itself.
     pub fn new(
         display: Arc<Display>,
         va_profile: VAProfile::Type,
@@ -275,6 +279,7 @@ where
         coded_size: Resolution,
         bitrate_control: u32,
         low_power: bool,
+        client_packed_headers: bool,
     ) -> StatelessBackendResult<Self> {
         let format_map = FORMAT_MAP
             .iter()
@@ -288,11 +293,7 @@ where
             log::info!(
                 "requested VA entrypoint ({}) is not available for profile {va_profile}: using {}",
                 if low_power { "EncSliceLP" } else { "EncSlice" },
-                if entrypoint == VAEntrypointEncSliceLP {
-                    "EncSliceLP"
-                } else {
-                    "EncSlice"
-                },
+                if entrypoint == VAEntrypointEncSliceLP { "EncSliceLP" } else { "EncSlice" },
             );
         }
 
@@ -303,9 +304,7 @@ where
             type_: libva::VAConfigAttribType::VAConfigAttribRTFormat,
             value: 0,
         }];
-        if display
-            .get_config_attributes(va_profile, entrypoint, &mut rt_format_attr)
-            .is_ok()
+        if display.get_config_attributes(va_profile, entrypoint, &mut rt_format_attr).is_ok()
             && rt_format_attr[0].value != libva::VA_ATTRIB_NOT_SUPPORTED
             && rt_format_attr[0].value & rt_format == 0
         {
@@ -335,7 +334,9 @@ where
             value: 0,
         }];
         display.get_config_attributes(va_profile, entrypoint, &mut packed_header_query)?;
-        let packed_headers = if packed_header_query[0].value != libva::VA_ATTRIB_NOT_SUPPORTED {
+        let packed_headers = if client_packed_headers
+            && packed_header_query[0].value != libva::VA_ATTRIB_NOT_SUPPORTED
+        {
             let desired = libva::VA_ENC_PACKED_HEADER_SEQUENCE
                 | libva::VA_ENC_PACKED_HEADER_PICTURE
                 | libva::VA_ENC_PACKED_HEADER_SLICE;

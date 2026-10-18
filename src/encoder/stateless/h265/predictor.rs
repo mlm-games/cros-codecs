@@ -51,6 +51,16 @@ impl<Picture, Reference> LowDelayH265<Picture, Reference> {
         }
     }
 
+    /// The reference list for a low-delay P: the picture one POC back.
+    fn low_delay_rps() -> crate::codec::h265::parser::ShortTermRefPicSet {
+        let mut st = crate::codec::h265::parser::ShortTermRefPicSet::default();
+        st.num_negative_pics = 1;
+        st.delta_poc_s0[0] = -1;
+        st.used_by_curr_pic_s0[0] = true;
+        st.num_delta_pocs = 1;
+        st
+    }
+
     fn new_sequence(&mut self) {
         // Just mirrors H264 LowDelayH264::new_sequence but for HEVC.
         let config = &self.delegate.config;
@@ -103,8 +113,8 @@ impl<Picture, Reference> LowDelayH265<Picture, Reference> {
             log2_min_pcm_luma_coding_block_size_minus3: 0,
             log2_diff_max_min_pcm_luma_coding_block_size: 0,
             pcm_loop_filter_disabled_flag: false,
-            num_short_term_ref_pic_sets: 0,
-            short_term_ref_pic_set: Vec::new(),
+            num_short_term_ref_pic_sets: 1,
+            short_term_ref_pic_set: vec![Self::low_delay_rps()],
             long_term_ref_pics_present_flag: false,
             num_long_term_ref_pics_sps: 0,
             lt_ref_pic_poc_lsb_sps: [0; 32],
