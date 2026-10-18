@@ -51,11 +51,12 @@ impl<Picture, Reference> LowDelayH265<Picture, Reference> {
         }
     }
 
-    /// The reference list for a low-delay P: the picture one POC back.
+    /// The reference list for a low-delay P: the previous picture. POCs step
+    /// by two, hence the delta.
     fn low_delay_rps() -> crate::codec::h265::parser::ShortTermRefPicSet {
         let mut st = crate::codec::h265::parser::ShortTermRefPicSet::default();
         st.num_negative_pics = 1;
-        st.delta_poc_s0[0] = -1;
+        st.delta_poc_s0[0] = -2;
         st.used_by_curr_pic_s0[0] = true;
         st.num_delta_pocs = 1;
         st
@@ -91,7 +92,7 @@ impl<Picture, Reference> LowDelayH265<Picture, Reference> {
             conf_win_bottom_offset: 0,
             bit_depth_luma_minus8: 0,
             bit_depth_chroma_minus8: 0,
-            log2_max_pic_order_cnt_lsb_minus4: 4,
+            log2_max_pic_order_cnt_lsb_minus4: 8,
             sub_layer_ordering_info_present_flag: false,
             max_dec_pic_buffering_minus1: [1, 0, 0, 0, 0, 0, 0],
             max_num_reorder_pics: [0; 7],
@@ -113,16 +114,36 @@ impl<Picture, Reference> LowDelayH265<Picture, Reference> {
             log2_min_pcm_luma_coding_block_size_minus3: 0,
             log2_diff_max_min_pcm_luma_coding_block_size: 0,
             pcm_loop_filter_disabled_flag: false,
-            num_short_term_ref_pic_sets: 1,
-            short_term_ref_pic_set: vec![Self::low_delay_rps()],
+            // Two identical sets: the driver signals an explicit index after
+            // `short_term_ref_pic_set_sps_flag`, which the syntax only
+            // carries when more than one set is available.
+            num_short_term_ref_pic_sets: 2,
+            short_term_ref_pic_set: vec![Self::low_delay_rps(), Self::low_delay_rps()],
             long_term_ref_pics_present_flag: false,
             num_long_term_ref_pics_sps: 0,
             lt_ref_pic_poc_lsb_sps: [0; 32],
             used_by_curr_pic_lt_sps_flag: [false; 32],
-            temporal_mvp_enabled_flag: true,
-            strong_intra_smoothing_enabled_flag: true,
-            vui_parameters_present_flag: false,
-            vui_parameters: Default::default(),
+            temporal_mvp_enabled_flag: false,
+            strong_intra_smoothing_enabled_flag: false,
+            vui_parameters_present_flag: true,
+            vui_parameters: crate::codec::h265::parser::VuiParams {
+                aspect_ratio_info_present_flag: true,
+                aspect_ratio_idc: 1,
+                video_signal_type_present_flag: true,
+                video_format: 5,
+                video_full_range_flag: false,
+                colour_description_present_flag: false,
+                timing_info_present_flag: true,
+                num_units_in_tick: 1,
+                time_scale: self.tunings.framerate,
+                poc_proportional_to_timing_flag: true,
+                bitstream_restriction_flag: true,
+                motion_vectors_over_pic_boundaries_flag: true,
+                restricted_ref_pic_lists_flag: true,
+                log2_max_mv_length_horizontal: 15,
+                log2_max_mv_length_vertical: 15,
+                ..Default::default()
+            },
             extension_present_flag: false,
             range_extension_flag: false,
             range_extension: Default::default(),
@@ -148,15 +169,15 @@ impl<Picture, Reference> LowDelayH265<Picture, Reference> {
             dependent_slice_segments_enabled_flag: false,
             output_flag_present_flag: false,
             num_extra_slice_header_bits: 0,
-            sign_data_hiding_enabled_flag: true,
+            sign_data_hiding_enabled_flag: false,
             cabac_init_present_flag: false,
             num_ref_idx_l0_default_active_minus1: 0,
             num_ref_idx_l1_default_active_minus1: 0,
-            init_qp_minus26: 0,
+            init_qp_minus26: 4,
             constrained_intra_pred_flag: false,
             transform_skip_enabled_flag: false,
             cu_qp_delta_enabled_flag: true,
-            diff_cu_qp_delta_depth: 0,
+            diff_cu_qp_delta_depth: 3,
             cb_qp_offset: 0,
             cr_qp_offset: 0,
             slice_chroma_qp_offsets_present_flag: false,
@@ -171,16 +192,16 @@ impl<Picture, Reference> LowDelayH265<Picture, Reference> {
             column_width_minus1: [0; 19],
             row_height_minus1: [0; 21],
             loop_filter_across_tiles_enabled_flag: true,
-            loop_filter_across_slices_enabled_flag: false,
-            deblocking_filter_control_present_flag: true,
+            loop_filter_across_slices_enabled_flag: true,
+            deblocking_filter_control_present_flag: false,
             deblocking_filter_override_enabled_flag: false,
             deblocking_filter_disabled_flag: false,
             beta_offset_div2: 0,
             tc_offset_div2: 0,
             scaling_list_data_present_flag: false,
             scaling_list: Default::default(),
-            lists_modification_present_flag: true,
-            log2_parallel_merge_level_minus2: 2,
+            lists_modification_present_flag: false,
+            log2_parallel_merge_level_minus2: 0,
             slice_segment_header_extension_present_flag: false,
             extension_present_flag: false,
             range_extension_flag: false,

@@ -8,12 +8,15 @@ use std::sync::Arc;
 use crate::codec::h265::parser::Sps;
 use crate::codec::h265::parser::Vps;
 use crate::codec::h265::synthesizer::write_pps;
+use crate::codec::h265::synthesizer::write_slice_header;
 use crate::codec::h265::synthesizer::write_sps;
 use crate::codec::h265::synthesizer::write_vps;
 use anyhow::Context;
 use libva::BufferType;
 use libva::Display;
 use libva::EncCodedBuffer;
+use libva::EncPackedHeaderParameter;
+use libva::EncPackedHeaderType;
 use libva::EncPictureParameterBufferHEVC;
 use libva::EncSequenceParameterBufferHEVC;
 use libva::EncSliceParameterBufferHEVC;
@@ -170,10 +173,11 @@ where
         let slice = &request.slice;
 
         let is_idr = request.is_idr;
+        // VA-API wants 1/2/3 (I/P/B); the bitstream's slice_type is 2/1/0.
         let coding_type = match slice.header.type_ {
-            crate::codec::h265::parser::SliceType::I => 2,
-            crate::codec::h265::parser::SliceType::P => 1,
-            crate::codec::h265::parser::SliceType::B => 0,
+            crate::codec::h265::parser::SliceType::I => 1,
+            crate::codec::h265::parser::SliceType::P => 2,
+            crate::codec::h265::parser::SliceType::B => 3,
         };
         let reference_flag = (request.dpb_meta.is_reference != IsReference::No) as u32;
 
@@ -291,7 +295,11 @@ where
         let slice_param = EncSliceParameterBufferHEVC::new(
             slice.header.segment_address,
             num_ctu_in_slice,
-            slice.header.type_ as u8,
+            match slice.header.type_ {
+                crate::codec::h265::parser::SliceType::I => 1,
+                crate::codec::h265::parser::SliceType::P => 2,
+                crate::codec::h265::parser::SliceType::B => 3,
+            },
             pps_pic_parameter_set_id(request),
             slice.header.num_ref_idx_l0_active_minus1,
             slice.header.num_ref_idx_l1_active_minus1,
@@ -307,7 +315,8 @@ where
             [0; 15],
             [[0; 2]; 15],
             [[0; 2]; 15],
-            slice.header.five_minus_max_num_merge_cand,
+            // VA-API takes the count; the bitstream carries 5 - count.
+            5u8.saturating_sub(slice.header.five_minus_max_num_merge_cand),
             slice.header.qp_delta,
             slice.header.cb_qp_offset,
             slice.header.cr_qp_offset,
@@ -388,12 +397,42 @@ where
             .map_err(|e| anyhow::anyhow!("parameter sets: {e}"))?;
         }
 
+        // The driver writes the slice header from the packed slice buffer; it
+        // carries the POC, reference set and the rest of the picture's header.
+        let packed_slice = if self.supports_packed_header(libva::VA_ENC_PACKED_HEADER_SLICE) {
+            let mut buffer = Vec::new();
+            let trailing = write_slice_header(
+                &request.slice.header,
+                &request.sps,
+                &request.pps,
+                request.slice.nalu.header.type_,
+                &mut buffer,
+                crate::backend::vaapi::encoder::ENABLE_EMULATION_PREVENTION_PACKED_HEADERS,
+            )
+            .map_err(|e| anyhow::anyhow!("slice header: {e}"))?;
+            let length_in_bits = (buffer.len() * 8) as u32 - trailing;
+            Some((
+                BufferType::EncPackedHeaderParameter(EncPackedHeaderParameter::new(
+                    EncPackedHeaderType::Slice,
+                    length_in_bits,
+                    crate::backend::vaapi::encoder::ENABLE_EMULATION_PREVENTION_PACKED_HEADERS,
+                )),
+                BufferType::EncPackedHeaderData(buffer),
+            ))
+        } else {
+            None
+        };
+
         let mut picture =
             Picture::new(request.dpb_meta.poc as u64, Rc::clone(self.context()), request.input);
 
         picture.add_buffer(self.context().create_buffer(seq_param)?);
         picture.add_buffer(self.context().create_buffer(pic_param)?);
         picture.add_buffer(self.context().create_buffer(slice_param)?);
+        if let Some((param, data)) = packed_slice {
+            picture.add_buffer(self.context().create_buffer(param)?);
+            picture.add_buffer(self.context().create_buffer(data)?);
+        }
 
         use crate::backend::vaapi::encoder::tunings_to_libva_rc;
         let rc_param = tunings_to_libva_rc::<1, 51>(&request.tunings)?;

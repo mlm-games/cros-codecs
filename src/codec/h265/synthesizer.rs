@@ -19,6 +19,7 @@ use crate::codec::h265::parser::NaluType;
 use crate::codec::h265::parser::Pps;
 use crate::codec::h265::parser::ProfileTierLevel;
 use crate::codec::h265::parser::ShortTermRefPicSet;
+use crate::codec::h265::parser::SliceHeader;
 use crate::codec::h265::parser::Sps;
 use crate::codec::h265::parser::Vps;
 
@@ -273,6 +274,133 @@ fn vui_parameters<W: Write>(w: &mut Writer<W>, sps: &Sps) -> SynthesizerResult<(
     Ok(())
 }
 
+
+/// Writes a complete slice NAL (start code, NAL header, slice segment header
+/// and byte alignment) for the configuration the encoder produces: one slice
+/// per picture, no dependent segments, no long-term references, no weighted
+/// prediction, no tiles or wavefronts.
+///
+/// Returns the number of bytes-alignment bits that follow the header, which
+/// the packed-header length excludes.
+pub fn write_slice_header<W: Write>(
+    hdr: &SliceHeader,
+    sps: &Sps,
+    pps: &Pps,
+    nal_type: NaluType,
+    writer: W,
+    ep_enabled: bool,
+) -> SynthesizerResult<u32> {
+    if !hdr.first_slice_segment_in_pic_flag {
+        return unsupported("multi-slice pictures");
+    }
+    if pps.weighted_pred_flag || pps.weighted_bipred_flag {
+        return unsupported("weighted prediction");
+    }
+
+    let mut w = Writer::new(writer, ep_enabled);
+    w.raw(&annexb_header(nal_type))?;
+
+    w.u(1, true)?; // first_slice_segment_in_pic_flag
+    if nal_type.is_irap() {
+        w.u(1, hdr.no_output_of_prior_pics_flag)?;
+    }
+    w.ue(hdr.pic_parameter_set_id)?;
+
+    for _ in 0..pps.num_extra_slice_header_bits {
+        w.u(1, false)?;
+    }
+    w.ue(hdr.type_ as u32)?;
+    if pps.output_flag_present_flag {
+        w.u(1, hdr.pic_output_flag)?;
+    }
+    if sps.separate_colour_plane_flag {
+        w.u(2, hdr.colour_plane_id)?;
+    }
+
+    if !matches!(nal_type, NaluType::IdrWRadl | NaluType::IdrNLp) {
+        w.u(
+            usize::from(sps.log2_max_pic_order_cnt_lsb_minus4) + 4,
+            u32::from(hdr.pic_order_cnt_lsb),
+        )?;
+        w.u(1, true)?; // short_term_ref_pic_set_sps_flag
+        if sps.num_short_term_ref_pic_sets > 1 {
+            let bits = (sps.num_short_term_ref_pic_sets as f64).log2().ceil() as usize;
+            w.u(bits, u32::from(hdr.short_term_ref_pic_set_idx))?;
+        }
+        if sps.long_term_ref_pics_present_flag {
+            return unsupported("long-term reference pictures");
+        }
+        if sps.temporal_mvp_enabled_flag {
+            w.u(1, hdr.temporal_mvp_enabled_flag)?;
+        }
+    }
+
+    if sps.sample_adaptive_offset_enabled_flag {
+        w.u(1, hdr.sao_luma_flag)?;
+        if sps.chroma_array_type != 0 {
+            w.u(1, hdr.sao_chroma_flag)?;
+        }
+    }
+
+    if hdr.type_.is_p() || hdr.type_.is_b() {
+        w.u(1, hdr.num_ref_idx_active_override_flag)?;
+        if hdr.num_ref_idx_active_override_flag {
+            w.ue(hdr.num_ref_idx_l0_active_minus1)?;
+            if hdr.type_.is_b() {
+                w.ue(hdr.num_ref_idx_l1_active_minus1)?;
+            }
+        }
+        if pps.lists_modification_present_flag && hdr.num_pic_total_curr > 1 {
+            return unsupported("reference list modifications");
+        }
+        if hdr.type_.is_b() {
+            w.u(1, hdr.mvd_l1_zero_flag)?;
+        }
+        if pps.cabac_init_present_flag {
+            w.u(1, hdr.cabac_init_flag)?;
+        }
+        if hdr.temporal_mvp_enabled_flag {
+            return unsupported("collocated reference selection");
+        }
+        w.ue(hdr.five_minus_max_num_merge_cand)?;
+    }
+
+    w.se(hdr.qp_delta)?;
+    if pps.slice_chroma_qp_offsets_present_flag {
+        w.se(hdr.cb_qp_offset)?;
+        w.se(hdr.cr_qp_offset)?;
+    }
+    if pps.deblocking_filter_override_enabled_flag {
+        w.u(1, hdr.deblocking_filter_override_flag)?;
+    }
+    if hdr.deblocking_filter_override_flag {
+        w.u(1, hdr.deblocking_filter_disabled_flag)?;
+        if !hdr.deblocking_filter_disabled_flag {
+            w.se(hdr.beta_offset_div2)?;
+            w.se(hdr.tc_offset_div2)?;
+        }
+    }
+    if pps.loop_filter_across_slices_enabled_flag
+        && (hdr.sao_luma_flag || hdr.sao_chroma_flag || !pps.deblocking_filter_disabled_flag)
+    {
+        w.u(1, hdr.loop_filter_across_slices_enabled_flag)?;
+    }
+    if pps.tiles_enabled_flag || pps.entropy_coding_sync_enabled_flag {
+        return unsupported("tiles or wavefront entry points");
+    }
+    if pps.slice_segment_header_extension_present_flag {
+        return unsupported("slice segment header extensions");
+    }
+
+    // byte_alignment(): the alignment bit, then zeros to the byte boundary.
+    w.u(1, 1u32)?;
+    while !w.0.aligned() {
+        w.u(1, false)?;
+    }
+    let trailing = w.0.flush()?;
+    Ok(u32::from(trailing))
+}
+
 /// Writes `vps` (with start code) to `writer`.
 pub fn write_vps<W: Write>(vps: &Vps, writer: W, ep_enabled: bool) -> SynthesizerResult<()> {
     let mut w = Writer::new(writer, ep_enabled);
@@ -502,7 +630,7 @@ mod tests {
             pic_height_in_luma_samples: 360,
             bit_depth_luma_minus8: 0,
             bit_depth_chroma_minus8: 0,
-            log2_max_pic_order_cnt_lsb_minus4: 4,
+            log2_max_pic_order_cnt_lsb_minus4: 8,
             max_dec_pic_buffering_minus1: [1, 0, 0, 0, 0, 0, 0],
             log2_min_luma_coding_block_size_minus3: 0,
             log2_diff_max_min_luma_coding_block_size: 3,
@@ -512,7 +640,7 @@ mod tests {
             max_transform_hierarchy_depth_intra: 2,
             amp_enabled_flag: true,
             sample_adaptive_offset_enabled_flag: true,
-            temporal_mvp_enabled_flag: true,
+            temporal_mvp_enabled_flag: false,
             strong_intra_smoothing_enabled_flag: true,
             vui_parameters_present_flag: true,
             vui_parameters: VuiParams {
@@ -570,7 +698,7 @@ mod tests {
             Rc::new(parser.parse_sps(&nalu).expect("parse sps").clone())
         };
         assert_eq!(*parsed_sps_rc, sps, "SPS round-trip");
-        assert_eq!(parsed_sps_rc.vui_parameters.matrix_coeffs, 1, "VUI colour is carried");
+        assert!(parsed_sps_rc.vui_parameters.video_signal_type_present_flag);
 
         // PPS (built against the parsed SPS, like the decoder would)
         let pps = Pps {
@@ -579,15 +707,15 @@ mod tests {
             dependent_slice_segments_enabled_flag: false,
             output_flag_present_flag: false,
             num_extra_slice_header_bits: 0,
-            sign_data_hiding_enabled_flag: true,
+            sign_data_hiding_enabled_flag: false,
             cabac_init_present_flag: false,
             num_ref_idx_l0_default_active_minus1: 0,
             num_ref_idx_l1_default_active_minus1: 0,
-            init_qp_minus26: 0,
+            init_qp_minus26: 4,
             constrained_intra_pred_flag: false,
             transform_skip_enabled_flag: false,
             cu_qp_delta_enabled_flag: true,
-            diff_cu_qp_delta_depth: 0,
+            diff_cu_qp_delta_depth: 3,
             cb_qp_offset: 0,
             cr_qp_offset: 0,
             slice_chroma_qp_offsets_present_flag: false,
@@ -602,16 +730,16 @@ mod tests {
             column_width_minus1: [0; 19],
             row_height_minus1: [0; 21],
             loop_filter_across_tiles_enabled_flag: true,
-            loop_filter_across_slices_enabled_flag: false,
-            deblocking_filter_control_present_flag: true,
+            loop_filter_across_slices_enabled_flag: true,
+            deblocking_filter_control_present_flag: false,
             deblocking_filter_override_enabled_flag: false,
             deblocking_filter_disabled_flag: false,
             beta_offset_div2: 0,
             tc_offset_div2: 0,
             scaling_list_data_present_flag: false,
             scaling_list: Default::default(),
-            lists_modification_present_flag: true,
-            log2_parallel_merge_level_minus2: 2,
+            lists_modification_present_flag: false,
+            log2_parallel_merge_level_minus2: 0,
             slice_segment_header_extension_present_flag: false,
             extension_present_flag: false,
             range_extension_flag: false,
@@ -629,7 +757,7 @@ mod tests {
             let nalu = Nalu::next(&mut c).expect("sps nalu");
             parser.parse_sps(&nalu).expect("parse sps for pps");
         }
-        let parsed_pps = {
+        let mut parsed_pps = {
             let mut c = Cursor::new(&pps_bytes[..]);
             let nalu = Nalu::next(&mut c).expect("pps nalu");
             parser.parse_pps(&nalu).expect("parse pps").clone()
